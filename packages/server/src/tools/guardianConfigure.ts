@@ -130,6 +130,15 @@ export async function guardianConfigure(
 
   // 2. Detect languages
   const languages = await detectProjectLanguages(directory);
+
+  // Ensure Go is detected if go.mod exists
+  if (fs.existsSync(join(directory, "go.mod")) && !languages.includes("go")) {
+    languages.unshift("go");
+  }
+  if (fs.existsSync(join(directory, "package.json")) && !languages.includes("typescript")) {
+    languages.unshift("typescript");
+  }
+
   const primaryLang = languages[0] ?? "typescript";
 
   // 3. Detect architecture layers

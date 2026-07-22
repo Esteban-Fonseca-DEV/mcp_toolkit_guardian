@@ -79,7 +79,31 @@ async function loadRuleset(configPath: string): Promise<Ruleset> {
     excludePaths: ["node_modules", "dist", "coverage"],
   };
 
-  if (!fs.existsSync(configPath)) return DEFAULT_RULESET;
+  if (!fs.existsSync(configPath)) {
+    // Auto-detect project structure and generate config
+    const projectDir = path.dirname(configPath);
+    process.stderr.write("  No .guardian.json found. Auto-detecting project structure...\n");
+
+    try {
+      const { guardianConfigure } = await import("@guardian/server");
+      const result = await guardianConfigure({ directory: projectDir }, DEFAULT_RULESET);
+
+      // The guardianConfigure function writes the file if it doesn't exist
+      if (fs.existsSync(configPath)) {
+        process.stderr.write(`  Generated .guardian.json (${result.configuration.architecture} architecture, ${result.configuration.detectedLanguages.join(", ")})\n`);
+        process.stderr.write(`  Detected layers: ${result.configuration.suggestedLayers.map(l => l.name).join(", ")}\n`);
+        process.stderr.write("\n");
+
+        const content = fs.readFileSync(configPath, "utf-8");
+        return JSON.parse(content) as Ruleset;
+      }
+    } catch (err) {
+      process.stderr.write(`  Auto-detection failed: ${err instanceof Error ? err.message : String(err)}\n`);
+      process.stderr.write("  Using default ruleset.\n\n");
+    }
+
+    return DEFAULT_RULESET;
+  }
 
   try {
     const content = fs.readFileSync(configPath, "utf-8");
@@ -104,15 +128,15 @@ function resolveFileLayer(filePath: string, ruleset: Ruleset): string | null {
 function resolveImportLayer(importPath: string, sourceFilePath: string, ruleset: Ruleset): string | null {
   const normalized = importPath.replace(/\\/g, "/");
 
-  // For relative imports, resolve against source file directory
+  // For relative imports (TypeScript, Dart), resolve against source file directory
   if (normalized.startsWith(".")) {
     const sourceDir = path.dirname(sourceFilePath).replace(/\\/g, "/");
     const resolvedImport = path.posix.normalize(sourceDir + "/" + normalized);
-
     for (const layer of ruleset.layers) {
       for (const pattern of layer.paths) {
-        // Match with and without extension suffixes
-        if (minimatch(resolvedImport, pattern) || minimatch(resolvedImport + ".ts", pattern) || minimatch(resolvedImport + "/index.ts", pattern)) {
+        if (minimatch(resolvedImport, pattern) || 
+            minimatch(resolvedImport + ".ts", pattern) || 
+            minimatch(resolvedImport + "/index.ts", pattern)) {
           return layer.name;
         }
       }
@@ -120,15 +144,42 @@ function resolveImportLayer(importPath: string, sourceFilePath: string, ruleset:
     return null;
   }
 
-  // For non-relative imports, check if the import path contains a layer reference
+  // For absolute/package imports (Go, Java, Python, C#, Kotlin, Rust)
+  // Strategy 1: Check if import contains the layer name as a path segment
   for (const layer of ruleset.layers) {
-    for (const pattern of layer.paths) {
-      const base = pattern.replace(/\/\*\*$/, "").replace(/\/\*$/, "");
-      if (normalized.includes(base) || normalized.includes(layer.name + "/") || normalized.includes("/" + layer.name)) {
+    // Check if the import path contains "/<layerName>/" or ends with "/<layerName>"
+    const layerPattern = "/" + layer.name;
+    if (normalized.includes(layerPattern + "/") || normalized.endsWith(layerPattern)) {
+      return layer.name;
+    }
+    // Also check for common variations
+    const variations = [layer.name];
+    if (layer.name === "application") variations.push("service", "services", "use_cases", "usecases");
+    if (layer.name === "presentation") variations.push("handler", "handlers", "controller", "controllers", "api");
+    if (layer.name === "infrastructure") variations.push("infra", "persistence", "repositories");
+    
+    for (const variant of variations) {
+      if (normalized.includes("/" + variant + "/") || normalized.endsWith("/" + variant)) {
         return layer.name;
       }
     }
   }
+
+  // Strategy 2: Check against layer path patterns (strip glob suffixes)
+  for (const layer of ruleset.layers) {
+    for (const pattern of layer.paths) {
+      const base = pattern.replace(/\/\*\*$/, "").replace(/\/\*$/, "");
+      // Match last 2 segments of the base against the import
+      const segments = base.split("/").filter(s => s.length > 0);
+      if (segments.length >= 2) {
+        const lastTwo = segments.slice(-2).join("/");
+        if (normalized.includes(lastTwo)) {
+          return layer.name;
+        }
+      }
+    }
+  }
+
   return null;
 }
 
@@ -217,6 +268,41 @@ async function runAuditAll(directory: string, agents: IAgent[], ruleset: Ruleset
     }
   }
 
+  // Run file-based language specialist tools on all source files
+  const { glob } = await import("glob");
+  const supportedExts = getSupportedExtensions();
+  let allSourceFiles: string[] = [];
+  for (const ext of supportedExts) {
+    const found = await glob(`**/*${ext}`, {
+      cwd: directory,
+      absolute: true,
+      ignore: ruleset.excludePaths.map(p => `**/${p}/**`).concat(["**/*.d.ts", "**/*.test.*", "**/*.spec.*", "**/*_test.*"]),
+    });
+    allSourceFiles.push(...found);
+  }
+
+  // Run language-specific idiom checks
+  for (const agent of agents) {
+    for (const tool of agent.tools) {
+      if (tool.name.startsWith("audit_") && tool.name.includes("_idioms") && (tool.schema as Record<string, any>)?.properties?.filepath) {
+        for (const file of allSourceFiles) {
+          try {
+            const report = await tool.handler({ filepath: file }, ruleset);
+            if (report.violations.length > 0) {
+              results.push(report);
+            }
+          } catch { /* skip */ }
+        }
+      }
+      // Also run security on the directory
+      if (tool.name === "audit_security_secrets") {
+        try {
+          results.push(await tool.handler({ directory }, ruleset));
+        } catch { /* skip */ }
+      }
+    }
+  }
+
   const allViolations: Violation[] = [];
   const byAgent: AgentSummary[] = [];
 
@@ -286,11 +372,7 @@ program
       const configPath = path.join(resolvedPath, ".guardian.json");
       const ruleset = await loadRuleset(configPath);
 
-      const agents: IAgent[] = [
-        new CleanGuardAgent(),
-        new TddStrictAgent(),
-        new DddGuardAgent(),
-      ];
+      const agents: IAgent[] = getAllAgents();
 
       const report = await runAuditAll(resolvedPath, agents, ruleset);
 

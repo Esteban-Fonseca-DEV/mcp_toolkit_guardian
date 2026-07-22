@@ -1,0 +1,99 @@
+name: Publish to npm
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (e.g., 1.0.2)'
+        required: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build all packages
+        run: pnpm -r run build
+
+      - name: Run tests
+        run: pnpm test
+
+      - name: Prepare publish bundle
+        run: |
+          rm -rf publish
+          mkdir -p publish/dist/node_modules/@guardian
+
+          # Copy CLI dist
+          cp -r packages/cli/dist/* publish/dist/
+
+          # Bundle all @guardian/* packages
+          for pkg in shared clean-guard tdd-strict ddd-guard security-guard solid-copilot concurrency-guard server dashboard lang-specialists; do
+            mkdir -p "publish/dist/node_modules/@guardian/$pkg"
+            cp -r "packages/$pkg/dist/"* "publish/dist/node_modules/@guardian/$pkg/"
+            cp "packages/$pkg/package.json" "publish/dist/node_modules/@guardian/$pkg/"
+          done
+
+          # Copy README
+          cp packages/cli/README.md publish/
+
+          # Determine version
+          if [ "${{ github.event_name }}" = "release" ]; then
+            VERSION="${{ github.event.release.tag_name }}"
+            VERSION="${VERSION#v}"  # Remove 'v' prefix if present
+          else
+            VERSION="${{ github.event.inputs.version }}"
+          fi
+
+          # Create clean package.json
+          cat > publish/package.json << EOF
+          {
+            "name": "guardian-mcp-toolkit",
+            "version": "${VERSION}",
+            "description": "Real-time architecture audit toolkit for Clean Architecture, DDD, SOLID, and TDD — supports 8 languages via MCP",
+            "main": "dist/index.js",
+            "bin": { "guardian": "dist/index.js" },
+            "keywords": ["architecture","clean-architecture","ddd","solid","tdd","mcp","audit","linter","typescript","golang","python","dart","csharp"],
+            "repository": { "type": "git", "url": "https://github.com/Estebanfonseca/mcp_toolkit_guardian" },
+            "license": "MIT",
+            "engines": { "node": ">=20.0.0" },
+            "dependencies": {
+              "commander": "^12.0.0",
+              "glob": "^10.0.0",
+              "minimatch": "^9.0.0",
+              "typescript": "^5.7.0",
+              "simple-git": "^3.22.0",
+              "ajv": "^8.12.0",
+              "@modelcontextprotocol/sdk": "^1.0.0",
+              "vscode-languageserver": "^9.0.0",
+              "vscode-languageserver-textdocument": "^1.0.0",
+              "zod": "^4.0.0"
+            }
+          }
+          EOF
+
+      - name: Publish to npm
+        working-directory: publish
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

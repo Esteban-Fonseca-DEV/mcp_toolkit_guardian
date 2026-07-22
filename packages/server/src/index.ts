@@ -8,3 +8,4 @@ export { determineRelevantAgents } from "./SmartRouter";
 export type { RoutingResult } from "./SmartRouter";
 export { evaluateCustomRules } from "./CustomRulesEngine";
 export type { CustomRule } from "./CustomRulesEngine";
+export { guardianConfigure } from "./tools/guardianConfigure";
