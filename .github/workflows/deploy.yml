@@ -12,7 +12,7 @@ permissions:
 
 env:
   AWS_REGION: us-east-2
-  NODE_VERSION: '20'
+  NODE_VERSION: '24'
 
 jobs:
   # Job 1: Build and Test
@@ -89,16 +89,14 @@ jobs:
             cp "$TYPESCRIPT_DIR/node_modules/typescript/lib/typescript.js" layers/shared/nodejs/node_modules/typescript/lib/
           fi
 
-      - name: Install CDK
+      - name: Install CDK globally
         run: npm install -g aws-cdk
-
-      - name: Install infra dependencies
-        working-directory: infra
-        run: npm install --ignore-scripts
 
       - name: CDK Deploy
         working-directory: infra
-        run: cdk deploy --require-approval never
+        run: |
+          pnpm install --no-frozen-lockfile
+          cdk deploy --require-approval never
         env:
           CDK_DEFAULT_ACCOUNT: ${{ secrets.AWS_ACCOUNT_ID }}
           CDK_DEFAULT_REGION: ${{ env.AWS_REGION }}
