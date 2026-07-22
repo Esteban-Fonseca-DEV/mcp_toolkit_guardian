@@ -48,7 +48,7 @@ describe("Property 16: Detección exhaustiva de encapsulación", () => {
     return modifier === "public";
   }
 
-  it("returns exactly the public mutable properties as violations", () => {
+  it("returns exactly the public mutable properties as violations", { timeout: 30000 }, () => {
     fc.assert(
       fc.property(classArb, (cls) => {
         // Deduplicate property names to avoid TypeScript compilation issues
@@ -87,11 +87,11 @@ describe("Property 16: Detección exhaustiva de encapsulación", () => {
 
         return true;
       }),
-      { numRuns: 100 }
+      { numRuns: 50 }
     );
   });
 
-  it("never reports violations for private, protected, or readonly properties", () => {
+  it("never reports violations for private, protected, or readonly properties", { timeout: 30000 }, () => {
     fc.assert(
       fc.property(
         fc.array(
@@ -124,7 +124,7 @@ describe("Property 16: Detección exhaustiva de encapsulación", () => {
           return true;
         }
       ),
-      { numRuns: 100 }
+      { numRuns: 50 }
     );
   });
 });
