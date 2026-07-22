@@ -1,0 +1,20 @@
+{
+  "name": "@guardian/lsp",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": { "guardian-lsp": "./dist/index.js" },
+  "scripts": { "build": "tsc" },
+  "dependencies": {
+    "@guardian/shared": "workspace:*",
+    "@guardian/clean-guard": "workspace:*",
+    "@guardian/tdd-strict": "workspace:*",
+    "@guardian/ddd-guard": "workspace:*",
+    "@guardian/security-guard": "workspace:*",
+    "@guardian/solid-copilot": "workspace:*",
+    "@guardian/concurrency-guard": "workspace:*",
+    "@guardian/server": "workspace:*",
+    "vscode-languageserver": "^9.0.0",
+    "vscode-languageserver-textdocument": "^1.0.0"
+  }
+}

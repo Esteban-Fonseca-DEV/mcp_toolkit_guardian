@@ -1,0 +1,21 @@
+{
+  "name": "@guardian/lambda",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@guardian/shared": "workspace:*",
+    "@guardian/clean-guard": "workspace:*",
+    "@guardian/tdd-strict": "workspace:*",
+    "@guardian/ddd-guard": "workspace:*",
+    "@guardian/security-guard": "workspace:*",
+    "@guardian/solid-copilot": "workspace:*",
+    "@guardian/concurrency-guard": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.0"
+  }
+}

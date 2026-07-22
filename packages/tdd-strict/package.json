@@ -1,0 +1,13 @@
+{
+  "name": "@guardian/tdd-strict",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@guardian/shared": "workspace:*",
+    "simple-git": "^3.22.0"
+  }
+}

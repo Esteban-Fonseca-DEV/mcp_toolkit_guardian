@@ -1,0 +1,17 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/shared" },
+    { "path": "packages/clean-guard" },
+    { "path": "packages/tdd-strict" },
+    { "path": "packages/ddd-guard" },
+    { "path": "packages/security-guard" },
+    { "path": "packages/solid-copilot" },
+    { "path": "packages/concurrency-guard" },
+    { "path": "packages/server" },
+    { "path": "packages/lambda" },
+    { "path": "packages/cli" },
+    { "path": "packages/lsp" },
+    { "path": "packages/dashboard" }
+  ]
+}

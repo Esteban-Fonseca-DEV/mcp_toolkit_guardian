@@ -1,0 +1,73 @@
+name: 'Guardian MCP Toolkit Audit'
+description: 'Run Guardian architecture audit on Pull Requests'
+inputs:
+  fail-on:
+    description: 'Severity threshold to fail the check (error | warning)'
+    required: false
+    default: 'error'
+  agents:
+    description: 'Comma-separated list of agents to run (empty = all)'
+    required: false
+    default: ''
+  generate-pr-comment:
+    description: 'Generate a PR comment with audit results'
+    required: false
+    default: 'true'
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+    - name: Install pnpm
+      uses: pnpm/action-setup@v2
+      with:
+        version: 9
+    - name: Install dependencies
+      shell: bash
+      run: |
+        cd ${{ github.workspace }}
+        pnpm install --frozen-lockfile
+        pnpm build
+    - name: Run Guardian Audit
+      shell: bash
+      id: audit
+      run: |
+        RESULT=$(npx guardian audit . --format json --fail-on ${{ inputs.fail-on }} 2>/dev/null || true)
+        echo "report<<EOF" >> $GITHUB_OUTPUT
+        echo "$RESULT" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+        EXIT_CODE=$(npx guardian audit . --fail-on ${{ inputs.fail-on }} > /dev/null 2>&1; echo $?)
+        echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
+    - name: Comment on PR
+      if: inputs.generate-pr-comment == 'true' && github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const report = JSON.parse(`${{ steps.audit.outputs.report }}`);
+          let body = '## 🛡️ Guardian Architecture Audit\n\n';
+          body += `**Status:** ${report.status === 'passed' ? '✅ Passed' : '❌ Failed'}\n\n`;
+          body += `| Metric | Count |\n|--------|-------|\n`;
+          body += `| Errors | ${report.summary.errorCount} |\n`;
+          body += `| Warnings | ${report.summary.warningCount} |\n\n`;
+          if (report.violations.length > 0) {
+            body += '### Violations\n\n';
+            body += '| File | Line | Rule | Severity | Description |\n';
+            body += '|------|------|------|----------|-------------|\n';
+            for (const v of report.violations.slice(0, 20)) {
+              body += `| \`${v.filePath}\` | ${v.line} | ${v.rule || '-'} | ${v.severity} | ${v.description.slice(0, 60)} |\n`;
+            }
+            if (report.violations.length > 20) {
+              body += `\n*...and ${report.violations.length - 20} more violations*\n`;
+            }
+          }
+          await github.rest.issues.createComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+            body
+          });
+    - name: Check Result
+      shell: bash
+      run: exit ${{ steps.audit.outputs.exit_code }}

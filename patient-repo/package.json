@@ -1,0 +1,6 @@
+{
+  "name": "patient-repo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Demo repository with intentional architecture violations for Guardian MCP Toolkit testing"
+}

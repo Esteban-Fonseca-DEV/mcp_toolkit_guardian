@@ -1,0 +1,1 @@
+{"version":3,"file":"RulesetLoader.d.ts","sourceRoot":"","sources":["RulesetLoader.ts"],"names":[],"mappings":"AAGA,OAAO,EAAE,OAAO,EAAmB,MAAM,kBAAkB,CAAC;AAmC5D,qBAAa,aAAa;IACxB,OAAO,CAAC,MAAM,CAAC,GAAG,CAAgC;IAClD,OAAO,CAAC,MAAM,CAAC,QAAQ,CAA6C;WAEvD,IAAI,CAAC,UAAU,EAAE,MAAM,GAAG,OAAO,CAAC,OAAO,CAAC;CAyBxD"}

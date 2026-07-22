@@ -1,0 +1,1 @@
+{"version":3,"file":"auditSecurityEnvAccess.d.ts","sourceRoot":"","sources":["auditSecurityEnvAccess.ts"],"names":[],"mappings":"AAIA,OAAO,EAAE,WAAW,EAAE,OAAO,EAA0B,MAAM,kBAAkB,CAAC;AA+EhF,wBAAsB,sBAAsB,CAC1C,IAAI,EAAE;IAAE,QAAQ,EAAE,MAAM,CAAA;CAAE,EAC1B,OAAO,EAAE,OAAO,GACf,OAAO,CAAC,WAAW,CAAC,CA4DtB"}

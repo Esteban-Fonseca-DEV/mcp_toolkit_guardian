@@ -1,0 +1,68 @@
+{
+  "title": "Guardian Configuration",
+  "description": "Schema for .guardian.json configuration files used by the Guardian MCP Toolkit",
+  "type": "object",
+  "required": ["version", "executionMode", "layers", "testConventions"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Schema version (semver)",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "executionMode": {
+      "type": "string",
+      "enum": ["local", "cloud"],
+      "description": "Execution mode: local runs agents in-process, cloud delegates to AWS Lambda"
+    },
+    "layers": {
+      "type": "array",
+      "description": "Architectural layer definitions for Clean Architecture validation",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["name", "paths", "allowedDependencies"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Layer name (e.g. domain, application, infrastructure, presentation)"
+          },
+          "paths": {
+            "type": "array",
+            "items": { "type": "string" },
+            "minItems": 1,
+            "description": "Glob patterns that match files belonging to this layer"
+          },
+          "allowedDependencies": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Names of layers this layer is allowed to import from"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "testConventions": {
+      "type": "array",
+      "description": "File patterns that identify test files",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["pattern"],
+        "properties": {
+          "pattern": {
+            "type": "string",
+            "description": "Glob pattern for test files (e.g. **/*.test.ts, **/*.spec.ts)"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "excludePaths": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Paths to exclude from analysis (e.g. node_modules, dist)",
+      "default": []
+    }
+  },
+  "additionalProperties": false
+}

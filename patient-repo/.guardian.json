@@ -1,0 +1,27 @@
+{
+  "version": "1.0.0",
+  "executionMode": "local",
+  "layers": [
+    { "name": "domain", "paths": ["src/domain/**"], "allowedDependencies": [] },
+    { "name": "application", "paths": ["src/application/**"], "allowedDependencies": ["domain"] },
+    { "name": "infrastructure", "paths": ["src/infrastructure/**"], "allowedDependencies": ["domain", "application"] },
+    { "name": "presentation", "paths": ["src/presentation/**"], "allowedDependencies": ["application"] }
+  ],
+  "testConventions": [
+    { "pattern": "**/*.test.ts" },
+    { "pattern": "**/*.spec.ts" }
+  ],
+  "excludePaths": ["node_modules", "dist", "coverage"],
+  "ddd": {
+    "aggregates": {
+      "Order": {
+        "root": "src/domain/order/Order.ts",
+        "internals": ["src/domain/order/OrderItem.ts"]
+      }
+    },
+    "boundedContexts": {
+      "orders": ["src/domain/order/**", "src/application/**"],
+      "infrastructure": ["src/infrastructure/**"]
+    }
+  }
+}

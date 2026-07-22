@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    "module": "CommonJS",
+    "moduleResolution": "node"
+  },
+  "include": ["src/**/*"],
+  "references": [
+    { "path": "../shared" },
+    { "path": "../clean-guard" },
+    { "path": "../tdd-strict" },
+    { "path": "../ddd-guard" },
+    { "path": "../security-guard" },
+    { "path": "../solid-copilot" },
+    { "path": "../concurrency-guard" }
+  ]
+}

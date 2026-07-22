@@ -1,0 +1,21 @@
+{
+  "name": "guardian-mcp-toolkit",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Plataforma de auditoría de código en tiempo real usando Model Context Protocol",
+  "scripts": {
+    "build": "tsc --build",
+    "test": "vitest run",
+    "start": "node packages/server/dist/index.js"
+  },
+  "packageManager": "pnpm@9.15.4",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0",
+    "fast-check": "^3.22.0",
+    "@types/node": "^20.0.0"
+  }
+}
