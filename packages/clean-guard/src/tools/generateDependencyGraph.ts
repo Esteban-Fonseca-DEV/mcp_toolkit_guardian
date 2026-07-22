@@ -1,7 +1,7 @@
 import { readdir, readFile } from "fs/promises";
 import { join, relative } from "path";
 import { minimatch } from "minimatch";
-import { AuditReport, Ruleset, Violation, buildReport } from "@guardian/shared";
+import { AuditReport, Ruleset, Violation, buildReport, getSupportedExtensions, parseImportsMultiLang } from "@guardian/shared";
 import { parseImports } from "../AstParser";
 
 export interface DependencyGraph {
@@ -14,11 +14,12 @@ export interface GenerateDependencyGraphResult extends AuditReport {
 }
 
 /**
- * Recursively collects all .ts files in a directory, excluding paths matched by excludePaths patterns.
+ * Recursively collects all supported source files in a directory, excluding paths matched by excludePaths patterns.
  * Skips .d.ts files (type declarations).
  */
-async function getTypeScriptFiles(dir: string, excludePaths: string[]): Promise<string[]> {
+async function getSourceFiles(dir: string, excludePaths: string[]): Promise<string[]> {
   const files: string[] = [];
+  const supportedExts = getSupportedExtensions();
 
   async function walk(currentDir: string) {
     const entries = await readdir(currentDir, { withFileTypes: true });
@@ -36,7 +37,7 @@ async function getTypeScriptFiles(dir: string, excludePaths: string[]): Promise<
 
       if (entry.isDirectory()) {
         await walk(fullPath);
-      } else if (entry.isFile() && entry.name.endsWith(".ts") && !entry.name.endsWith(".d.ts")) {
+      } else if (entry.isFile() && supportedExts.some(ext => entry.name.endsWith(ext)) && !entry.name.endsWith(".d.ts")) {
         files.push(fullPath);
       }
     }
@@ -60,7 +61,7 @@ export async function generateDependencyGraph(
 
   let tsFiles: string[];
   try {
-    tsFiles = await getTypeScriptFiles(directory, ruleset.excludePaths);
+    tsFiles = await getSourceFiles(directory, ruleset.excludePaths);
   } catch (err) {
     const report = buildReport({
       agentName: "clean-guard",
@@ -101,6 +102,18 @@ export async function generateDependencyGraph(
     const imports = parseImports(filePath, content);
 
     if (imports === null) {
+      // Try multi-language parser as fallback for non-TypeScript files
+      const multiLangImports = parseImportsMultiLang(filePath, content);
+      if (multiLangImports !== null) {
+        for (const imp of multiLangImports) {
+          graph.edges.push({
+            from: relativePath,
+            to: imp.targetModule,
+          });
+        }
+        continue;
+      }
+
       violations.push({
         filePath: relativePath,
         line: 0,

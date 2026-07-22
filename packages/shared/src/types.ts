@@ -36,6 +36,7 @@ export interface LayerRule {
   name: string;                  // e.g., "domain", "application"
   paths: string[];               // e.g., ["src/domain/**"]
   allowedDependencies: string[]; // capas que puede importar
+  importPatterns?: string[];     // package-path patterns for languages like Go, Java, Python
 }
 
 export interface TestConvention {

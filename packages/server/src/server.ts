@@ -6,6 +6,7 @@ import { DddGuardAgent } from "@guardian/ddd-guard";
 import { SecurityGuardAgent } from "@guardian/security-guard";
 import { SolidCopilotAgent } from "@guardian/solid-copilot";
 import { ConcurrencyGuardAgent } from "@guardian/concurrency-guard";
+import { GoIdiomaticGuard, PyAsyncGuard, TsContractGuard, DartArchGuard, DotNetCleanGuard } from "@guardian/lang-specialists";
 import { Ruleset } from "@guardian/shared";
 import { AgentRegistry } from "./AgentRegistry";
 import { RulesetLoader } from "./RulesetLoader";
@@ -33,6 +34,11 @@ export async function startServer(configPath: string): Promise<void> {
       new SecurityGuardAgent(),
       new SolidCopilotAgent(),
       new ConcurrencyGuardAgent(),
+      new GoIdiomaticGuard(),
+      new PyAsyncGuard(),
+      new TsContractGuard(),
+      new DartArchGuard(),
+      new DotNetCleanGuard(),
     ],
     ruleset
   );

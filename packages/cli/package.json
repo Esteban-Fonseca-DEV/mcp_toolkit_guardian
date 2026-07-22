@@ -13,6 +13,7 @@
     "@guardian/security-guard": "workspace:*",
     "@guardian/solid-copilot": "workspace:*",
     "@guardian/concurrency-guard": "workspace:*",
+    "@guardian/lang-specialists": "workspace:*",
     "@guardian/server": "workspace:*",
     "@guardian/dashboard": "workspace:*",
     "commander": "^12.0.0",

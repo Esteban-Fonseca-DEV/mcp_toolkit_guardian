@@ -69,6 +69,9 @@ importers:
       '@guardian/ddd-guard':
         specifier: workspace:*
         version: link:../ddd-guard
+      '@guardian/lang-specialists':
+        specifier: workspace:*
+        version: link:../lang-specialists
       '@guardian/security-guard':
         specifier: workspace:*
         version: link:../security-guard
@@ -149,6 +152,12 @@ importers:
         specifier: ^8.10.0
         version: 8.10.162
 
+  packages/lang-specialists:
+    dependencies:
+      '@guardian/shared':
+        specifier: workspace:*
+        version: link:../shared
+
   packages/lsp:
     dependencies:
       '@guardian/clean-guard':
@@ -208,6 +217,9 @@ importers:
       '@guardian/ddd-guard':
         specifier: workspace:*
         version: link:../ddd-guard
+      '@guardian/lang-specialists':
+        specifier: workspace:*
+        version: link:../lang-specialists
       '@guardian/security-guard':
         specifier: workspace:*
         version: link:../security-guard

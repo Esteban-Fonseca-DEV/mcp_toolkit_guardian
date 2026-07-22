@@ -8,6 +8,7 @@ import { DddGuardAgent } from "@guardian/ddd-guard";
 import { SecurityGuardAgent } from "@guardian/security-guard";
 import { SolidCopilotAgent } from "@guardian/solid-copilot";
 import { ConcurrencyGuardAgent } from "@guardian/concurrency-guard";
+import { GoIdiomaticGuard, PyAsyncGuard, TsContractGuard, DartArchGuard, DotNetCleanGuard } from "@guardian/lang-specialists";
 import { Ruleset, AuditReport, IAgent, Violation, buildReport, computeStatus, AgentSummary } from "@guardian/shared";
 import { formatReport } from "./formatter";
 import { resolveExitCode } from "./exitCodeResolver";
@@ -21,6 +22,11 @@ function getAllAgents(): IAgent[] {
     new SecurityGuardAgent(),
     new SolidCopilotAgent(),
     new ConcurrencyGuardAgent(),
+    new GoIdiomaticGuard(),
+    new PyAsyncGuard(),
+    new TsContractGuard(),
+    new DartArchGuard(),
+    new DotNetCleanGuard(),
   ];
 }
 
@@ -364,6 +370,34 @@ mcpCmd
     const { startServer } = await import("@guardian/server");
     const configPath = process.env.GUARDIAN_CONFIG ?? ".guardian.json";
     await startServer(configPath);
+  });
+
+// --- guardian hooks ---
+const hooksCmd = program
+  .command("hooks")
+  .description("Gestionar Git hooks de Guardian");
+
+hooksCmd
+  .command("install")
+  .description("Instalar pre-commit y pre-push hooks que ejecutan guardian audit")
+  .action(() => {
+    try {
+      const { installHooks } = require("./hooks");
+      const result = installHooks(path.resolve("."));
+
+      if (result.created.length > 0) {
+        process.stderr.write(`  Hooks creados: ${result.created.join(", ")}\n`);
+      }
+      if (result.appended.length > 0) {
+        process.stderr.write(`  Hooks actualizados: ${result.appended.join(", ")}\n`);
+      }
+      if (result.created.length === 0 && result.appended.length === 0) {
+        process.stderr.write("  Guardian hooks ya estaban instalados.\n");
+      }
+    } catch (err) {
+      process.stderr.write(`Error: ${err instanceof Error ? err.message : String(err)}\n`);
+      process.exit(2);
+    }
   });
 
 // --- guardian dashboard ---
