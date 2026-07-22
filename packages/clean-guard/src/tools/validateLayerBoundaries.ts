@@ -1,4 +1,4 @@
-import { AuditReport, Ruleset, buildReport } from "@guardian/shared";
+import { AuditReport, Ruleset, LayerRule, buildReport } from "@guardian/shared";
 
 export async function validateLayerBoundaries(
   args: { source_layer: string; target_layer: string },
@@ -7,7 +7,7 @@ export async function validateLayerBoundaries(
   const { source_layer, target_layer } = args;
 
   // Find the source layer definition in the ruleset
-  const sourceLayerDef = ruleset.layers.find(l => l.name === source_layer);
+  const sourceLayerDef = ruleset.layers.find((l: LayerRule) => l.name === source_layer);
 
   if (!sourceLayerDef) {
     return buildReport({

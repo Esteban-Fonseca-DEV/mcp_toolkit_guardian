@@ -32,11 +32,11 @@ export async function checkTestCoverageDelta(
   }
 
   // Filter to only production files (exclude test files and excluded paths)
-  const productionFiles = changedFiles.filter((file) => {
+  const productionFiles = changedFiles.filter((file: string) => {
     // Exclude test files
     if (isTestFile(file, ruleset)) return false;
     // Exclude paths from ruleset
-    if (ruleset.excludePaths.some((p) => file.startsWith(p) || file.includes(`/${p}/`))) {
+    if (ruleset.excludePaths.some((p: string) => file.startsWith(p) || file.includes(`/${p}/`))) {
       return false;
     }
     // Only include TypeScript files

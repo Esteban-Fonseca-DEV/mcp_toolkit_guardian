@@ -1,6 +1,6 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 import { TddStrictAgent } from "@guardian/tdd-strict";
-import { Ruleset } from "@guardian/shared";
+import { Ruleset, ToolDefinition } from "@guardian/shared";
 
 interface LambdaPayload {
   toolName: string;
@@ -21,7 +21,7 @@ export async function handler(
     const agent = new TddStrictAgent();
     agent.initialize(payload.ruleset);
 
-    const tool = agent.tools.find((t) => t.name === payload.toolName);
+    const tool = agent.tools.find((t: ToolDefinition) => t.name === payload.toolName);
     if (!tool) {
       return {
         statusCode: 404,

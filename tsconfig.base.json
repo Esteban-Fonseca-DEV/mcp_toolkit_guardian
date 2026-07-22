@@ -11,22 +11,7 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "composite": true,
     "outDir": "dist",
-    "rootDir": "src",
-    "paths": {
-      "@guardian/shared": ["./packages/shared/src/index.ts"],
-      "@guardian/clean-guard": ["./packages/clean-guard/src/index.ts"],
-      "@guardian/tdd-strict": ["./packages/tdd-strict/src/index.ts"],
-      "@guardian/ddd-guard": ["./packages/ddd-guard/src/index.ts"],
-      "@guardian/security-guard": ["./packages/security-guard/src/index.ts"],
-      "@guardian/solid-copilot": ["./packages/solid-copilot/src/index.ts"],
-      "@guardian/concurrency-guard": ["./packages/concurrency-guard/src/index.ts"],
-      "@guardian/server": ["./packages/server/src/index.ts"],
-      "@guardian/lambda": ["./packages/lambda/src/index.ts"],
-      "@guardian/cli": ["./packages/cli/src/index.ts"],
-      "@guardian/lsp": ["./packages/lsp/src/index.ts"],
-      "@guardian/dashboard": ["./packages/dashboard/src/index.ts"]
-    }
+    "rootDir": "src"
   }
 }

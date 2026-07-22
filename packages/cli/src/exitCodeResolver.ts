@@ -1,4 +1,4 @@
-import { AuditReport } from "@guardian/shared";
+import { AuditReport, Violation } from "@guardian/shared";
 
 export function resolveExitCode(
   report: AuditReport,
@@ -6,8 +6,8 @@ export function resolveExitCode(
 ): number {
   if (report.status === "error") return 2;
 
-  const hasErrors = report.violations.some(v => v.severity === "error");
-  const hasWarnings = report.violations.some(v => v.severity === "warning");
+  const hasErrors = report.violations.some((v: Violation) => v.severity === "error");
+  const hasWarnings = report.violations.some((v: Violation) => v.severity === "warning");
 
   if (failOn === "warning") {
     return (hasErrors || hasWarnings) ? 1 : 0;

@@ -4,7 +4,7 @@
   "private": true,
   "description": "Plataforma de auditoría de código en tiempo real usando Model Context Protocol",
   "scripts": {
-    "build": "tsc --build",
+    "build": "pnpm -r run build",
     "test": "vitest run",
     "start": "node packages/server/dist/index.js"
   },
