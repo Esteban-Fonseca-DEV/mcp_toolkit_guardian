@@ -9,7 +9,8 @@ import { SecurityGuardAgent } from "@guardian/security-guard";
 import { SolidCopilotAgent } from "@guardian/solid-copilot";
 import { ConcurrencyGuardAgent } from "@guardian/concurrency-guard";
 import { GoIdiomaticGuard, PyAsyncGuard, TsContractGuard, DartArchGuard, DotNetCleanGuard } from "@guardian/lang-specialists";
-import { Ruleset, AuditReport, IAgent, Violation, buildReport, computeStatus, AgentSummary } from "@guardian/shared";
+import { Ruleset, AuditReport, IAgent, Violation, buildReport, computeStatus, AgentSummary, parseImportsMultiLang, getSupportedExtensions } from "@guardian/shared";
+import { minimatch } from "minimatch";
 import { formatReport } from "./formatter";
 import { resolveExitCode } from "./exitCodeResolver";
 
@@ -88,6 +89,106 @@ async function loadRuleset(configPath: string): Promise<Ruleset> {
   }
 }
 
+function resolveFileLayer(filePath: string, ruleset: Ruleset): string | null {
+  const normalized = filePath.replace(/\\/g, "/");
+  for (const layer of ruleset.layers) {
+    for (const pattern of layer.paths) {
+      if (minimatch(normalized, pattern)) {
+        return layer.name;
+      }
+    }
+  }
+  return null;
+}
+
+function resolveImportLayer(importPath: string, sourceFilePath: string, ruleset: Ruleset): string | null {
+  const normalized = importPath.replace(/\\/g, "/");
+
+  // For relative imports, resolve against source file directory
+  if (normalized.startsWith(".")) {
+    const sourceDir = path.dirname(sourceFilePath).replace(/\\/g, "/");
+    const resolvedImport = path.posix.normalize(sourceDir + "/" + normalized);
+
+    for (const layer of ruleset.layers) {
+      for (const pattern of layer.paths) {
+        // Match with and without extension suffixes
+        if (minimatch(resolvedImport, pattern) || minimatch(resolvedImport + ".ts", pattern) || minimatch(resolvedImport + "/index.ts", pattern)) {
+          return layer.name;
+        }
+      }
+    }
+    return null;
+  }
+
+  // For non-relative imports, check if the import path contains a layer reference
+  for (const layer of ruleset.layers) {
+    for (const pattern of layer.paths) {
+      const base = pattern.replace(/\/\*\*$/, "").replace(/\/\*$/, "");
+      if (normalized.includes(base) || normalized.includes(layer.name + "/") || normalized.includes("/" + layer.name)) {
+        return layer.name;
+      }
+    }
+  }
+  return null;
+}
+
+async function runLayerBoundaryAudit(directory: string, ruleset: Ruleset): Promise<Violation[]> {
+  const { glob } = await import("glob");
+  const supportedExts = getSupportedExtensions();
+  const violations: Violation[] = [];
+
+  // Find all source files
+  let files: string[] = [];
+  for (const ext of supportedExts) {
+    const found = await glob(`**/*${ext}`, {
+      cwd: directory,
+      absolute: true,
+      ignore: ruleset.excludePaths.map(p => `**/${p}/**`).concat(["**/*.d.ts", "**/*.test.*", "**/*.spec.*"]),
+    });
+    files.push(...found);
+  }
+
+  for (const file of files) {
+    const relativePath = path.relative(directory, file).replace(/\\/g, "/");
+    const sourceLayer = resolveFileLayer(relativePath, ruleset);
+
+    if (!sourceLayer) continue; // File not in any defined layer — skip
+
+    // Get allowed dependencies for this layer
+    const layerDef = ruleset.layers.find(l => l.name === sourceLayer);
+    if (!layerDef) continue;
+
+    // Parse imports
+    let content: string;
+    try {
+      content = fs.readFileSync(file, "utf-8");
+    } catch { continue; }
+
+    const imports = parseImportsMultiLang(file, content);
+    if (!imports || imports.length === 0) continue;
+
+    for (const imp of imports) {
+      const targetLayer = resolveImportLayer(imp.targetModule, relativePath, ruleset);
+
+      if (!targetLayer) continue; // Import target not in any defined layer — skip (stdlib, external packages)
+      if (targetLayer === sourceLayer) continue; // Same layer — always OK
+
+      // Check if this dependency is allowed
+      if (!layerDef.allowedDependencies.includes(targetLayer)) {
+        violations.push({
+          filePath: relativePath,
+          line: imp.line,
+          description: `Layer '${sourceLayer}' cannot depend on layer '${targetLayer}'. Import: '${imp.targetModule}'. Allowed dependencies: [${layerDef.allowedDependencies.join(", ")}]`,
+          severity: "error",
+          rule: "LAYER_BOUNDARY_VIOLATION",
+        });
+      }
+    }
+  }
+
+  return violations;
+}
+
 async function runAuditAll(directory: string, agents: IAgent[], ruleset: Ruleset): Promise<AuditReport> {
   const results: AuditReport[] = [];
 
@@ -118,6 +219,16 @@ async function runAuditAll(directory: string, agents: IAgent[], ruleset: Ruleset
 
   const allViolations: Violation[] = [];
   const byAgent: AgentSummary[] = [];
+
+  // Run layer boundary validation (the core value of Guardian)
+  const layerViolations = await runLayerBoundaryAudit(directory, ruleset);
+  if (layerViolations.length > 0) {
+    results.push(buildReport({
+      agentName: "clean-guard",
+      analyzedPath: directory,
+      violations: layerViolations,
+    }));
+  }
 
   // Group by agent
   const agentMap = new Map<string, { errors: number; warnings: number }>();

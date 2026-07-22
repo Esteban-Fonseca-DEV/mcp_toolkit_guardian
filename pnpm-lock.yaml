@@ -93,6 +93,9 @@ importers:
       glob:
         specifier: ^10.0.0
         version: 10.5.0
+      minimatch:
+        specifier: ^9.0.0
+        version: 9.0.9
 
   packages/concurrency-guard:
     dependencies:

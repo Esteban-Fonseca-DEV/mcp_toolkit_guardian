@@ -17,6 +17,7 @@
     "@guardian/server": "workspace:*",
     "@guardian/dashboard": "workspace:*",
     "commander": "^12.0.0",
-    "glob": "^10.0.0"
+    "glob": "^10.0.0",
+    "minimatch": "^9.0.0"
   }
 }

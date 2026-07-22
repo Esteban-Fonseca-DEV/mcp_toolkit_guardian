@@ -7,11 +7,12 @@ import { SecurityGuardAgent } from "@guardian/security-guard";
 import { SolidCopilotAgent } from "@guardian/solid-copilot";
 import { ConcurrencyGuardAgent } from "@guardian/concurrency-guard";
 import { GoIdiomaticGuard, PyAsyncGuard, TsContractGuard, DartArchGuard, DotNetCleanGuard } from "@guardian/lang-specialists";
-import { Ruleset } from "@guardian/shared";
+import { Ruleset, Violation, buildReport } from "@guardian/shared";
 import { AgentRegistry } from "./AgentRegistry";
 import { RulesetLoader } from "./RulesetLoader";
 import { ExecutionRouter } from "./ExecutionRouter";
 import { auditAll } from "./AuditAllTool";
+import { guardianConfigure } from "./tools/guardianConfigure";
 import { z } from "zod";
 
 /**
@@ -118,6 +119,77 @@ export async function startServer(configPath: string): Promise<void> {
               }),
             },
           ],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Register the guardian_configure smart onboarding tool
+  server.tool(
+    "guardian_configure",
+    "Auto-detect project structure, language, and architecture. Generates optimal .guardian.json configuration.",
+    {
+      directory: z.string(),
+    },
+    async (args) => {
+      try {
+        const result = await guardianConfigure(
+          { directory: args.directory },
+          ruleset
+        );
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+        };
+      } catch (err) {
+        return {
+          content: [{ type: "text", text: JSON.stringify({ error: String(err) }) }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Register the guardian_audit_file tool for single-file analysis
+  server.tool(
+    "guardian_audit_file",
+    "Audit a single file using all relevant agents (Smart Routing selects which agents to run based on file type and location)",
+    {
+      filepath: z.string(),
+    },
+    async (args) => {
+      try {
+        const results: { violations: Violation[] }[] = [];
+
+        // Run all file-based tools from all agents
+        for (const tool of registry.getTools()) {
+          const schemaProperties = (tool.schema as { properties?: Record<string, { type: string }> }).properties ?? {};
+          if (schemaProperties.filepath) {
+            try {
+              const report = await tool.handler({ filepath: args.filepath }, ruleset);
+              if (report.violations.length > 0) {
+                results.push(report);
+              }
+            } catch {
+              /* skip failing tools */
+            }
+          }
+        }
+
+        // Consolidate
+        const allViolations: Violation[] = results.flatMap(r => r.violations);
+        const consolidated = buildReport({
+          agentName: "guardian",
+          analyzedPath: args.filepath,
+          violations: allViolations,
+        });
+
+        return {
+          content: [{ type: "text", text: JSON.stringify(consolidated, null, 2) }],
+        };
+      } catch (err) {
+        return {
+          content: [{ type: "text", text: JSON.stringify({ error: String(err) }) }],
           isError: true,
         };
       }
