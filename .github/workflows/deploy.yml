@@ -89,13 +89,16 @@ jobs:
             cp "$TYPESCRIPT_DIR/node_modules/typescript/lib/typescript.js" layers/shared/nodejs/node_modules/typescript/lib/
           fi
 
-      - name: Install CDK dependencies
+      - name: Install CDK
+        run: npm install -g aws-cdk
+
+      - name: Install infra dependencies
         working-directory: infra
-        run: npm install
+        run: npm install --ignore-scripts
 
       - name: CDK Deploy
         working-directory: infra
-        run: npx cdk deploy --require-approval never
+        run: cdk deploy --require-approval never
         env:
           CDK_DEFAULT_ACCOUNT: ${{ secrets.AWS_ACCOUNT_ID }}
           CDK_DEFAULT_REGION: ${{ env.AWS_REGION }}
