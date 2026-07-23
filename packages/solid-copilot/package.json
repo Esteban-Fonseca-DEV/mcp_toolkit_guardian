@@ -1,6 +1,6 @@
 {
   "name": "@guardian/solid-copilot",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@guardian/shared": "workspace:*",
+    "@aws-sdk/client-bedrock-runtime": "^3.700.0",
     "typescript": "^5.0.0"
   }
 }

@@ -1,6 +1,6 @@
 {
   "name": "guardian-mcp-toolkit",
-  "version": "1.0.1",
+  "version": "1.2.0",
   "description": "Real-time architecture audit toolkit for Clean Architecture, DDD, SOLID, and TDD — supports 8 languages via MCP",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -24,6 +24,7 @@
     "@guardian/lang-specialists": "workspace:*",
     "@guardian/server": "workspace:*",
     "@guardian/dashboard": "workspace:*",
+    "chokidar": "^4.0.0",
     "commander": "^12.0.0",
     "glob": "^10.0.0",
     "minimatch": "^9.0.0"
