@@ -1,173 +1,150 @@
-# Guardian MCP Toolkit
+# 🛡️ Guardian MCP Toolkit
 
-Real-time code audit platform powered by the [Model Context Protocol](https://modelcontextprotocol.io). Guardian runs architecture and testing validations directly inside your IDE through MCP-compatible tools.
+**Real-time architecture governance for Clean Architecture, DDD, SOLID, TDD, and Security — in 8 languages.**
 
-## Features
+[![npm version](https://img.shields.io/npm/v/guardian-mcp-toolkit)](https://www.npmjs.com/package/guardian-mcp-toolkit)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Tests](https://img.shields.io/badge/tests-215%20passed-brightgreen)]()
+[![Agents](https://img.shields.io/badge/agents-11-purple)]()
 
-### Phase 1 (MVP)
-- **Clean-Guard Agent** — Validates Clean Architecture layer boundaries via AST analysis
-- **TDD-Strict Agent** — Enforces Red-Green-Refactor workflow via git diff inspection
-- **MCP Server** — Full Model Context Protocol support (stdio transport)
-- **AWS Lambda** — Cloud execution mode via API Gateway
-- **Configurable Rules** — `.guardian.json` with JSON Schema validation
-- **Structured Reports** — `AuditReport` with violations, severity, and summaries
+Guardian is an MCP-native toolkit that exposes 11 specialized agents via the Model Context Protocol, enabling IDEs and CI/CD pipelines to enforce architecture rules in real-time.
 
-### Phase 2
-- **DDD-Guard Agent** — Detects Domain-Driven Design violations (encapsulation, aggregate access, bounded contexts)
-- **CLI (`guardian audit`)** — Run audits from terminal and CI/CD pipelines
-- **AWS CDK Deploy** — Infrastructure as Code for Lambda + API Gateway (placeholder)
-- **20 Property-Based Tests** — Formal correctness verification with fast-check
-- **Patient Repo Demo** — Intentional violations across all 3 agents
-
-## Prerequisites
-
-- Node.js >= 20
-- pnpm >= 9
-
-## Installation
+## 🚀 Quick Start
 
 ```bash
-git clone <repo-url> guardian-mcp-toolkit
-cd guardian-mcp-toolkit
-pnpm install
-pnpm build
+# Install globally
+npm install -g guardian-mcp-toolkit
+
+# Audit any project (auto-detects structure & language)
+guardian audit /path/to/your/project
+
+# Auto-fix violations
+guardian fix /path/to/your/project --apply
 ```
 
-## CLI Usage
+## 🔌 MCP Integration (IDE)
 
-```bash
-# Audit a directory (text output)
-npx guardian audit ./patient-repo
-
-# JSON output for CI/CD
-npx guardian audit ./patient-repo --format json
-
-# Fail on warnings too
-npx guardian audit ./patient-repo --fail-on warning
-
-# Show help
-npx guardian audit --help
-```
-
-### Exit Codes
-
-| Code | Meaning |
-|------|---------|
-| 0 | No violations above threshold |
-| 1 | Violations detected at configured `--fail-on` level |
-| 2 | Internal error (invalid path, bad config) |
-
-## Demo
-
-### Quick Demo
-
-```bash
-bash scripts/demo.sh
-```
-
-### Manual Steps
-
-1. Install: `pnpm install && pnpm build`
-2. Run audit: `npx guardian audit ./patient-repo`
-3. See violations from Clean-Guard, TDD-Strict, and DDD-Guard
-4. See `scripts/demo-guide.md` for full presentation walkthrough
-
-## MCP Server Connection
-
-### Connecting from VS Code (Kiro / Copilot / Continue)
-
-Add the server to your MCP settings (`.kiro/settings/mcp.json` or equivalent):
+Connect Guardian to your IDE's AI assistant (Kiro, VS Code, Cursor, Claude Desktop):
 
 ```json
 {
   "mcpServers": {
     "guardian": {
-      "command": "node",
-      "args": ["packages/server/dist/main.js", "--config", ".guardian.json"]
+      "command": "guardian",
+      "args": ["mcp", "serve"]
     }
   }
 }
 ```
 
-The server starts via stdio and exposes the tools below to any MCP client.
+Once connected, ask your AI assistant: *"Audit my project's architecture"* and it will use Guardian's tools automatically.
 
-## Tools Reference (10 MCP Tools)
+## 🤖 11 Specialized Agents
 
-| Tool | Agent | Description |
-|------|-------|-------------|
-| `analyze_ast_imports` | clean-guard | Parse a file's AST and return its import statements |
-| `validate_layer_boundaries` | clean-guard | Check if a dependency between layers is allowed |
-| `generate_dependency_graph` | clean-guard | Build full dependency graph with layer violation detection |
-| `check_test_coverage_delta` | tdd-strict | Detect source files missing a matching test file |
-| `enforce_test_first_sequence` | tdd-strict | Verify test-first workflow in git diff |
-| `generate_tdd_lifecycle_report` | tdd-strict | Export Mermaid diagram of TDD cycle |
-| `audit_ddd_encapsulation` | ddd-guard | Detect mutable public state in domain entities |
-| `audit_ddd_aggregate_access` | ddd-guard | Detect direct access to aggregate internals |
-| `audit_ddd_bounded_context` | ddd-guard | Verify bounded context boundaries |
-| `audit_all` | guardian | Run all agents in parallel; return consolidated report |
+### Core Agents (Architecture)
+| Agent | What it detects | Languages |
+|-------|----------------|-----------|
+| **Clean-Guard** | Layer boundary violations | All |
+| **TDD-Strict** | Missing tests, TDD sequence | All |
+| **DDD-Guard** | Encapsulation, aggregate access, bounded contexts | All |
+| **Security-Guard** | Hardcoded secrets, env access | All |
+| **SOLID-Copilot** | God Objects (SRP), fat interfaces (ISP) | All |
+| **Concurrency-Guard** | Async anti-patterns, mutable exports | All |
 
-### Tool Schemas
+### Language Specialists (Idiomatic Rules)
+| Agent | Language | What it detects |
+|-------|----------|----------------|
+| **Go-Idiomatic-Guard** | Go | Goroutine leaks, missing context, error wrapping, interface placement |
+| **Py-Async-Guard** | Python | Blocking I/O in async, circular imports, missing type hints |
+| **TS-Contract-Guard** | TypeScript | `any` in domain, deep imports, unhandled promises |
+| **Dart-Arch-Guard** | Dart/Flutter | Flutter in domain, stream leaks, UI logic leaks |
+| **DotNet-Clean-Guard** | C#/.NET | EF in domain, missing CancellationToken, DbContext leaks |
 
-**generate_dependency_graph**
-```json
-{ "directory": "string (required) — path to analyze" }
+## 🛠️ 20+ MCP Tools
+
+| Tool | Description |
+|------|-------------|
+| `guardian_configure` | Auto-detect project structure and generate config |
+| `guardian_audit_file` | Audit a single file with all relevant agents |
+| `audit_all` | Run all agents on a directory |
+| `analyze_ast_imports` | Parse file imports (AST) |
+| `validate_layer_boundaries` | Check if a dependency is allowed |
+| `generate_dependency_graph` | Build full dependency graph |
+| `check_test_coverage_delta` | Verify tests exist per commit |
+| `enforce_test_first_sequence` | Validate TDD workflow |
+| `generate_tdd_lifecycle_report` | Export Mermaid TDD diagram |
+| `audit_ddd_encapsulation` | Detect mutable public state |
+| `audit_ddd_aggregate_access` | Detect direct internal access |
+| `audit_ddd_bounded_context` | Verify context boundaries |
+| `audit_security_secrets` | Scan for hardcoded secrets |
+| `audit_security_env_access` | Check env access outside infra |
+| `evaluate_single_responsibility` | SRP analysis |
+| `suggest_interface_segregation` | ISP analysis |
+| `audit_concurrency` | Async anti-patterns |
+| `audit_go_idioms` | Go-specific rules |
+| `audit_python_idioms` | Python-specific rules |
+| `audit_typescript_idioms` | TypeScript-specific rules |
+| `audit_dart_idioms` | Dart/Flutter-specific rules |
+| `audit_csharp_idioms` | C#/.NET-specific rules |
+
+## 💻 CLI Commands
+
+```bash
+guardian audit [path]           # Full audit with all 11 agents
+guardian fix [path] [--apply]   # Auto-remediate violations
+guardian init                   # Generate .guardian.json
+guardian agent list             # Show agents and status
+guardian agent enable <name>    # Enable an agent
+guardian agent disable <name>   # Disable an agent
+guardian mcp serve              # Start MCP server for IDE
+guardian hooks install          # Install git pre-commit/pre-push
+guardian dashboard              # Open web dashboard (Health Score)
 ```
 
-**validate_layer_boundaries**
-```json
-{ "source_layer": "string", "target_layer": "string" }
+## 🌐 Supported Languages
+
+| Language | Import Detection | Idiom Rules |
+|----------|-----------------|-------------|
+| TypeScript/JavaScript | ✅ AST (Compiler API) | ✅ TS-Contract-Guard |
+| Go | ✅ Regex | ✅ Go-Idiomatic-Guard |
+| Python | ✅ Regex | ✅ Py-Async-Guard |
+| Dart | ✅ Regex | ✅ Dart-Arch-Guard |
+| C# | ✅ Regex | ✅ DotNet-Clean-Guard |
+| Java | ✅ Regex | — |
+| Kotlin | ✅ Regex | — |
+| Rust | ✅ Regex | — |
+
+## ⚡ GitHub Actions
+
+```yaml
+name: Guardian Audit
+on: [pull_request]
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - run: npm install -g guardian-mcp-toolkit
+      - run: guardian audit . --fail-on error
 ```
 
-**analyze_ast_imports**
+## ☁️ AWS Cloud Mode
+
+Guardian can delegate analysis to AWS Lambda for scalability:
+
 ```json
-{ "filepath": "string (required) — file to parse" }
+{ "executionMode": "cloud" }
 ```
 
-**check_test_coverage_delta**
-```json
-{ "commit_hash": "string (required) — git commit to diff against" }
-```
+API Gateway: `https://c7dkqug6kf.execute-api.us-east-2.amazonaws.com/prod/`
 
-**audit_ddd_encapsulation**
-```json
-{ "filepath": "string (required) — file to analyze" }
-```
+Routes: `/clean-guard`, `/tdd-strict`, `/ddd-guard`, `/security-guard`, `/solid-copilot`, `/concurrency-guard`
 
-**audit_ddd_aggregate_access**
-```json
-{ "directory": "string (required) — directory to scan" }
-```
+## 📐 Configuration
 
-**audit_ddd_bounded_context**
-```json
-{ "directory": "string (required) — directory to scan" }
-```
-
-**audit_all**
-```json
-{
-  "directory": "string (required) — path to analyze",
-  "commit_hash": "string (optional) — if provided, also runs test coverage check"
-}
-```
-
-## Patient Repo Demo
-
-The `patient-repo/` directory contains a sample project with intentional architecture violations:
-
-- **3 Clean Architecture violations** — Domain importing from Infrastructure
-- **1 TDD violation** — Production file without test counterpart
-- **2 DDD violations** — Mutable public state + direct internal access
-
-Run `npx guardian audit ./patient-repo` to see them all detected.
-
-See `patient-repo/README.md` for full documentation of each violation.
-
-## `.guardian.json` Configuration
-
-Place a `.guardian.json` file at the root of the project you want to audit.
-
-### Full Example
+Create `.guardian.json` in your project root (or let Guardian auto-generate it):
 
 ```json
 {
@@ -175,74 +152,62 @@ Place a `.guardian.json` file at the root of the project you want to audit.
   "executionMode": "local",
   "layers": [
     { "name": "domain", "paths": ["src/domain/**"], "allowedDependencies": [] },
-    { "name": "application", "paths": ["src/application/**"], "allowedDependencies": ["domain"] },
+    { "name": "application", "paths": ["src/services/**"], "allowedDependencies": ["domain"] },
     { "name": "infrastructure", "paths": ["src/infrastructure/**"], "allowedDependencies": ["domain", "application"] },
-    { "name": "presentation", "paths": ["src/presentation/**"], "allowedDependencies": ["application"] }
+    { "name": "presentation", "paths": ["src/handlers/**"], "allowedDependencies": ["application"] }
   ],
-  "testConventions": [
-    { "pattern": "**/*.test.ts" },
-    { "pattern": "**/*.spec.ts" }
-  ],
-  "excludePaths": ["node_modules", "dist", "coverage"],
-  "ddd": {
-    "aggregates": {
-      "Order": {
-        "root": "src/domain/order/Order.ts",
-        "internals": ["src/domain/order/OrderItem.ts"]
-      }
-    },
-    "boundedContexts": {
-      "orders": ["src/domain/order/**"],
-      "users": ["src/domain/user/**"]
-    }
-  }
+  "testConventions": [{ "pattern": "**/*_test.go" }],
+  "excludePaths": ["vendor", "node_modules", ".git"]
 }
 ```
 
-### Fields
+## 🏥 Patient Repo (Demo)
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `version` | string | yes | Config version (semver) |
-| `executionMode` | string | yes | `"local"` or `"cloud"` |
-| `layers` | array | yes | Layer definitions with allowed dependency rules |
-| `testConventions` | array | yes | Glob patterns identifying test files |
-| `excludePaths` | array | no | Paths to skip during analysis |
-| `ddd` | object | no | DDD configuration (aggregates, bounded contexts) |
-
-### Validation
-
-A JSON Schema is available at `.guardian.schema.json` for editor autocompletion and CI validation.
-
-## AWS Deploy (Placeholder)
-
-Infrastructure is defined for CDK deployment with:
-- 3 Lambda Functions (clean-guard, tdd-strict, ddd-guard)
-- API Gateway REST with routes `/clean-guard`, `/tdd-strict`, `/ddd-guard`
-- Lambda Layer with shared dependencies
+Test Guardian against intentional violations:
 
 ```bash
-# When AWS credentials are configured:
-bash scripts/deploy.sh
+guardian audit ./patient-repo
+# Returns 12+ violations across all 6 core agents
 ```
 
-## Project Structure
+## 📊 Additional Features
+
+- **Dashboard**: `guardian dashboard` — Health Score (0-100), heatmap, agent breakdown
+- **LSP Server**: Real-time diagnostics in IDE (squiggly lines + Quick Fixes)
+- **Auto-Fix**: `guardian fix` — Corrects 7 types of violations automatically
+- **Custom Rules DSL**: Define `forbidden_imports`, `max_lines`, `required_patterns`
+- **Git Hooks**: `guardian hooks install` — Pre-commit/pre-push validation
+
+## 📦 Project Structure
 
 ```
 guardian-mcp-toolkit/
-  packages/
-    shared/        — Types, interfaces, utilities
-    clean-guard/   — Architecture validation agent (3 tools)
-    tdd-strict/    — Test coverage validation agent (3 tools)
-    ddd-guard/     — DDD validation agent (3 tools)
-    server/        — MCP server, registry, router
-    lambda/        — AWS Lambda handlers (cloud mode)
-    cli/           — CLI for terminal and CI/CD
-  patient-repo/    — Demo project with violations
-  scripts/         — Demo and deploy scripts
-  infra/           — CDK Infrastructure (placeholder)
+├── packages/
+│   ├── shared/            # Types, interfaces, multi-lang parser
+│   ├── server/            # MCP Server, Smart Router, AST Cache
+│   ├── clean-guard/       # Clean Architecture agent (3 tools)
+│   ├── tdd-strict/        # TDD agent (3 tools)
+│   ├── ddd-guard/         # DDD agent (3 tools)
+│   ├── security-guard/    # Security agent (2 tools)
+│   ├── solid-copilot/     # SOLID agent (2 tools)
+│   ├── concurrency-guard/ # Concurrency agent (1 tool)
+│   ├── lang-specialists/  # 5 language specialist agents
+│   ├── cli/               # CLI (9 commands)
+│   ├── lsp/               # LSP Server
+│   ├── dashboard/         # Web dashboard
+│   └── lambda/            # AWS Lambda handlers
+├── infra/                 # CDK Stack (AWS)
+├── patient-repo/          # Demo with intentional violations
+├── action/                # GitHub Action
+└── scripts/               # Deploy & publish scripts
 ```
+
+## 🧪 Testing
+
+- **215 tests** across 39 test files
+- **Property-Based Testing** with fast-check (20+ properties, 100 iterations each)
+- **Patient Repo** acceptance tests
 
 ## License
 
-MIT
+MIT — [Edwin Esteban Fonseca](https://github.com/Estebanfonseca)
