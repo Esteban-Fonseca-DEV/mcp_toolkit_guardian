@@ -5,6 +5,10 @@
   "types": "dist/index.d.ts",
   "scripts": { "build": "tsc" },
   "dependencies": {
-    "@guardian/shared": "workspace:*"
+    "@guardian/shared": "workspace:*",
+    "express": "^4.21.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0"
   }
 }

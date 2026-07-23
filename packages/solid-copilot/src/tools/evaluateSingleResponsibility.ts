@@ -1,11 +1,42 @@
 import { readFile } from "fs/promises";
 import * as ts from "typescript";
 import { AuditReport, Ruleset, Violation, buildReport } from "@guardian/shared";
+import { BedrockClient } from "../bedrock/BedrockClient";
+import { validateSolidPayload } from "../bedrock/schemaValidator";
+import { mapBedrockViolations } from "../bedrock/severityMapper";
+import { BedrockConfig } from "../bedrock/types";
+
+/**
+ * Checks whether AWS credentials are available in the environment.
+ * If neither AWS_ACCESS_KEY_ID nor AWS_REGION are set, Bedrock is considered unavailable.
+ */
+function isBedrockAvailable(): boolean {
+  return !!(process.env.AWS_ACCESS_KEY_ID || process.env.AWS_REGION);
+}
+
+/**
+ * Extracts Bedrock configuration from the ruleset if a `bedrock` section is present.
+ * Falls back to defaults defined in BedrockClient constructor.
+ */
+function extractBedrockConfig(ruleset: Ruleset): Partial<BedrockConfig> {
+  const bedrockSection = (ruleset as unknown as Record<string, unknown>)["bedrock"] as
+    | Record<string, unknown>
+    | undefined;
+
+  if (!bedrockSection) return {};
+
+  return {
+    modelId: bedrockSection.model_id as string | undefined,
+    fallbackModelId: bedrockSection.fallback_model_id as string | undefined,
+    timeoutMs: bedrockSection.timeout_ms as number | undefined,
+    maxRetries: bedrockSection.max_retries as number | undefined,
+  };
+}
 
 export async function evaluateSingleResponsibility(
   args: { filepath: string },
   ruleset: Ruleset
-): Promise<AuditReport> {
+): Promise<AuditReport & { fallback?: boolean }> {
   const { filepath } = args;
 
   let content: string;
@@ -27,6 +58,48 @@ export async function evaluateSingleResponsibility(
     });
   }
 
+  // If AWS credentials are not available, use local analysis directly
+  if (!isBedrockAvailable()) {
+    return evaluateLocal(filepath, content);
+  }
+
+  // Attempt Bedrock analysis with fallback
+  try {
+    const bedrockConfig = extractBedrockConfig(ruleset);
+    const client = new BedrockClient(bedrockConfig);
+    const result = await client.analyze(content);
+
+    if (!result.success || !result.payload) {
+      // Bedrock failed → fallback to local analysis
+      const localReport = evaluateLocal(filepath, content);
+      return { ...localReport, fallback: true };
+    }
+
+    // Validate schema of the Bedrock response
+    if (!validateSolidPayload(result.payload)) {
+      const localReport = evaluateLocal(filepath, content);
+      return { ...localReport, fallback: true };
+    }
+
+    // Map Bedrock violations to Guardian format
+    const violations = mapBedrockViolations(result.payload.violations, filepath);
+
+    return buildReport({
+      agentName: "solid-copilot",
+      analyzedPath: filepath,
+      violations,
+    });
+  } catch {
+    // Any unexpected error → fallback to local analysis
+    const localReport = evaluateLocal(filepath, content);
+    return { ...localReport, fallback: true };
+  }
+}
+
+/**
+ * Performs local static analysis (the original behavior) as fallback.
+ */
+function evaluateLocal(filepath: string, content: string): AuditReport {
   return buildReport({
     agentName: "solid-copilot",
     analyzedPath: filepath,
