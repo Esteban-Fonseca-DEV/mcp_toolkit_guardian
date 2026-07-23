@@ -8,14 +8,12 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write
 
 env:
   AWS_REGION: us-east-2
   NODE_VERSION: '24'
 
 jobs:
-  # Job 1: Build and Test
   build-and-test:
     runs-on: ubuntu-latest
     steps:
@@ -38,16 +36,6 @@ jobs:
       - name: Run tests
         run: pnpm test
 
-      - name: Run Guardian audit on self
-        run: npx guardian audit ./patient-repo --format json > audit-report.json 2>/dev/null || true
-
-      - name: Upload audit report
-        uses: actions/upload-artifact@v4
-        with:
-          name: guardian-audit-report
-          path: audit-report.json
-
-  # Job 2: Deploy to AWS (only on push to main)
   deploy:
     needs: build-and-test
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -106,60 +94,3 @@ jobs:
         run: |
           API_URL=$(aws cloudformation describe-stacks --stack-name GuardianStack --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" --output text)
           echo "🚀 Guardian API deployed at: $API_URL"
-          echo "GUARDIAN_API_URL=$API_URL" >> $GITHUB_ENV
-
-  # Job 3: PR Audit (on pull_request only)
-  pr-audit:
-    if: github.event_name == 'pull_request'
-    needs: build-and-test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build
-        run: pnpm build
-
-      - name: Run Guardian Audit
-        id: audit
-        run: |
-          REPORT=$(npx guardian audit . --format json 2>/dev/null || true)
-          echo "report<<EOF" >> $GITHUB_OUTPUT
-          echo "$REPORT" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: Comment PR with results
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const report = JSON.parse(`${{ steps.audit.outputs.report }}`);
-            let body = '## 🛡️ Guardian Architecture Audit\n\n';
-            body += `**Status:** ${report.status === 'passed' ? '✅ Passed' : '❌ Failed'}\n`;
-            body += `**Errors:** ${report.summary.errorCount} | **Warnings:** ${report.summary.warningCount}\n\n`;
-            if (report.violations && report.violations.length > 0) {
-              body += '### Violations\n\n';
-              body += '| File | Line | Rule | Severity |\n|------|------|------|----------|\n';
-              for (const v of report.violations.slice(0, 15)) {
-                body += `| \`${v.filePath}\` | ${v.line} | \`${v.rule || '-'}\` | ${v.severity} |\n`;
-              }
-              if (report.violations.length > 15) body += `\n*...and ${report.violations.length - 15} more*\n`;
-            } else {
-              body += '✅ No violations detected!\n';
-            }
-            body += '\n---\n*Powered by Guardian MCP Toolkit*';
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body
-            });
