@@ -1,116 +1,50 @@
-import { readFile } from "fs/promises";
-import * as ts from "typescript";
+import * as fs from "fs";
 import * as path from "path";
-import { minimatch } from "minimatch";
-import { AuditReport, Ruleset, Violation, buildReport } from "@guardian/shared";
+import { AuditReport, Violation, Ruleset, buildReport } from "@guardian/shared";
 
 /**
- * Resolves which architectural layer a file belongs to based on the Ruleset.
+ * Detects direct access to `process.env` outside of the infrastructure layer.
+ * Files in the infrastructure layer are allowed to access process.env.
+ * Files in any other layer (domain, application, presentation) generate a warning.
  */
-function resolveLayer(filePath: string, ruleset: Ruleset): string | null {
-  const normalizedPath = filePath.replace(/\\/g, "/");
-  for (const layer of ruleset.layers) {
-    for (const pattern of layer.paths) {
-      if (minimatch(normalizedPath, pattern)) {
-        return layer.name;
-      }
-    }
-  }
-  return null;
-}
-
-/**
- * Walks the AST looking for `process.env` property access expressions.
- * Returns the line numbers where these accesses occur.
- */
-function findProcessEnvAccesses(sourceFile: ts.SourceFile): number[] {
-  const lines: number[] = [];
-
-  function visit(node: ts.Node): void {
-    // Look for property access: process.env.SOMETHING or process.env["SOMETHING"]
-    if (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) {
-      const expr = ts.isPropertyAccessExpression(node) ? node.expression : node.expression;
-      // Check if expression is `process.env`
-      if (ts.isPropertyAccessExpression(expr)) {
-        const obj = expr.expression;
-        const prop = expr.name;
-        if (
-          ts.isIdentifier(obj) &&
-          obj.text === "process" &&
-          ts.isIdentifier(prop) &&
-          prop.text === "env"
-        ) {
-          const line =
-            sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile))
-              .line + 1;
-          lines.push(line);
-          return; // Don't recurse into children of this node
-        }
-      }
-    }
-
-    // Also catch direct `process.env` access without a further property
-    if (ts.isPropertyAccessExpression(node)) {
-      const obj = node.expression;
-      const prop = node.name;
-      if (
-        ts.isIdentifier(obj) &&
-        obj.text === "process" &&
-        ts.isIdentifier(prop) &&
-        prop.text === "env"
-      ) {
-        // Check if parent is NOT a property access (i.e., `process.env` used directly)
-        const parent = node.parent;
-        if (
-          !ts.isPropertyAccessExpression(parent) &&
-          !ts.isElementAccessExpression(parent)
-        ) {
-          const line =
-            sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile))
-              .line + 1;
-          lines.push(line);
-          return;
-        }
-      }
-    }
-
-    ts.forEachChild(node, visit);
-  }
-
-  visit(sourceFile);
-  return lines;
-}
-
 export async function auditSecurityEnvAccess(
   args: { filepath: string },
   ruleset: Ruleset
 ): Promise<AuditReport> {
   const { filepath } = args;
 
-  let content: string;
-  try {
-    content = await readFile(filepath, "utf-8");
-  } catch (err) {
+  if (!fs.existsSync(filepath)) {
     return buildReport({
       agentName: "security-guard",
       analyzedPath: filepath,
-      violations: [
-        {
-          filePath: filepath,
-          line: 0,
-          description: `Cannot read file: ${(err as Error).message}`,
-          severity: "warning",
-          rule: "FILE_READ_ERROR",
-        },
-      ],
+      status: "error",
+      error: `File not found: ${filepath}`,
     });
   }
 
-  const normalizedPath = filepath.replace(/\\/g, "/");
-  const layer = resolveLayer(normalizedPath, ruleset);
+  const stat = fs.statSync(filepath);
+  if (!stat.isFile()) {
+    return buildReport({
+      agentName: "security-guard",
+      analyzedPath: filepath,
+      status: "error",
+      error: `Path is not a file: ${filepath}`,
+    });
+  }
 
-  // If the file is in the infrastructure layer, process.env access is allowed
-  if (layer === "infrastructure") {
+  // Determine if file is in infrastructure layer
+  const normalizedPath = filepath.replace(/\\/g, "/");
+  const infrastructurePaths = ruleset.layers
+    ?.filter((l) => l.name === "infrastructure")
+    .flatMap((l) => l.paths) ?? ["src/infrastructure/**"];
+
+  const isInfrastructure = infrastructurePaths.some((p) => {
+    const basePath = p.replace("/**", "").replace("/*", "");
+    return normalizedPath.includes(basePath);
+  });
+
+  // If in infrastructure, env access is allowed
+  if (isInfrastructure) {
     return buildReport({
       agentName: "security-guard",
       analyzedPath: filepath,
@@ -118,25 +52,29 @@ export async function auditSecurityEnvAccess(
     });
   }
 
-  const sourceFile = ts.createSourceFile(
-    filepath,
-    content,
-    ts.ScriptTarget.Latest,
-    true
-  );
-
-  const envAccessLines = findProcessEnvAccesses(sourceFile);
+  // Scan for process.env access
+  const content = fs.readFileSync(filepath, "utf-8");
+  const lines = content.split("\n");
   const violations: Violation[] = [];
 
-  for (const line of envAccessLines) {
-    const layerDesc = layer ? `'${layer}'` : "unknown";
-    violations.push({
-      filePath: filepath,
-      line,
-      description: `Access to 'process.env' outside infrastructure layer (found in ${layerDesc} layer). Move environment access to infrastructure.`,
-      severity: "warning",
-      rule: "ENV_ACCESS_OUTSIDE_INFRA",
-    });
+  const envAccessPattern = /process\.env(?:\[|\.)/;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    // Skip comments
+    if (trimmed.startsWith("//") || trimmed.startsWith("*") || trimmed.startsWith("/*")) continue;
+
+    if (envAccessPattern.test(line)) {
+      violations.push({
+        filePath: filepath,
+        line: i + 1,
+        description: `Direct access to process.env outside infrastructure layer. Extract environment configuration to an infrastructure service.`,
+        severity: "warning",
+        rule: "SECURITY_ENV_ACCESS_VIOLATION",
+      });
+    }
   }
 
   return buildReport({
