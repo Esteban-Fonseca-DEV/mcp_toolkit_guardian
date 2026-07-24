@@ -2,7 +2,7 @@ import { readdir, readFile } from "fs/promises";
 import { join, relative } from "path";
 import { minimatch } from "minimatch";
 import { AuditReport, Ruleset, Violation, buildReport, getSupportedExtensions, parseImportsMultiLang } from "@guardian/shared";
-import { parseImports } from "../AstParser";
+import { cachedParseImports, IAstCache } from "../AstParser";
 
 export interface DependencyGraph {
   nodes: string[];
@@ -54,7 +54,8 @@ async function getSourceFiles(dir: string, excludePaths: string[]): Promise<stri
  */
 export async function generateDependencyGraph(
   args: { directory: string },
-  ruleset: Ruleset
+  ruleset: Ruleset,
+  cache?: IAstCache
 ): Promise<GenerateDependencyGraphResult> {
   const { directory } = args;
   const violations: Violation[] = [];
@@ -99,7 +100,7 @@ export async function generateDependencyGraph(
       continue;
     }
 
-    const imports = parseImports(filePath, content);
+    const imports = cachedParseImports(filePath, content, cache);
 
     if (imports === null) {
       // Try multi-language parser as fallback for non-TypeScript files

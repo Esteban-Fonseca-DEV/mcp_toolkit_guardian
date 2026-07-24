@@ -1,6 +1,6 @@
 import { readFile } from "fs/promises";
 import { AuditReport, Ruleset, buildReport } from "@guardian/shared";
-import { parseImports } from "../AstParser";
+import { cachedParseImports, IAstCache } from "../AstParser";
 
 export interface ImportMapping {
   sourceModule: string;
@@ -16,7 +16,8 @@ export interface AnalyzeAstImportsResult extends AuditReport {
 
 export async function analyzeAstImports(
   args: { filepath: string },
-  ruleset: Ruleset
+  ruleset: Ruleset,
+  cache?: IAstCache
 ): Promise<AnalyzeAstImportsResult> {
   const { filepath } = args;
 
@@ -39,7 +40,7 @@ export async function analyzeAstImports(
     });
   }
 
-  const imports = parseImports(filepath, content);
+  const imports = cachedParseImports(filepath, content, cache);
 
   // If file is unparseable, return a warning violation (Req 2.6)
   if (imports === null) {

@@ -1,19 +1,38 @@
-name: Guardian Quick Audit
+name: Guardian Governance Audit
+
 on:
   pull_request:
-    paths:
-      - 'packages/**/*.ts'
-      - 'patient-repo/**/*.ts'
+    branches: [main, develop, 'release/**']
+  push:
+    branches: [main, develop]
 
 jobs:
   audit:
+    name: Run Guardian Audit
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - uses: pnpm/action-setup@v4
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm build
-      - run: pnpm test
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 9
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Run Guardian Audit
+        run: |
+          node packages/cli/dist/index.js audit . --format text --fail-on error

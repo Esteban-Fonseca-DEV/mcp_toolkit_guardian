@@ -1,18 +1,36 @@
-name: 'Guardian MCP Toolkit Audit'
-description: 'Run Guardian architecture audit on Pull Requests'
+name: 'Guardian Governance Audit'
+description: 'Run Guardian audit on your codebase to detect Architectural Drift and Semantic Violations'
+author: 'Guardian MCP Toolkit'
+
 inputs:
+  path:
+    description: 'Path to analyze (default: current directory)'
+    required: false
+    default: '.'
   fail-on:
-    description: 'Severity threshold to fail the check (error | warning)'
+    description: 'Severity level that causes failure: error | warning'
     required: false
     default: 'error'
-  agents:
-    description: 'Comma-separated list of agents to run (empty = all)'
+  format:
+    description: 'Output format: text | json'
     required: false
-    default: ''
+    default: 'text'
   generate-pr-comment:
     description: 'Generate a PR comment with audit results'
     required: false
     default: 'true'
+
+outputs:
+  status:
+    description: 'Audit status: passed | failed | error'
+    value: ${{ steps.audit.outputs.status }}
+  violations-count:
+    description: 'Total number of violations found'
+    value: ${{ steps.audit.outputs.violations-count }}
+  report:
+    description: 'Full audit report in JSON format'
+    value: ${{ steps.audit.outputs.report }}
+
 runs:
   using: 'composite'
   steps:
@@ -20,54 +38,118 @@ runs:
       uses: actions/setup-node@v4
       with:
         node-version: '20'
+
     - name: Install pnpm
       uses: pnpm/action-setup@v2
       with:
         version: 9
-    - name: Install dependencies
+
+    - name: Install Guardian dependencies
+      shell: bash
+      run: |
+        cd ${{ github.action_path }}/..
+        pnpm install --frozen-lockfile
+
+    - name: Build Guardian
+      shell: bash
+      run: |
+        cd ${{ github.action_path }}/..
+        pnpm build
+
+    - name: Run Guardian Audit
+      id: audit
       shell: bash
       run: |
         cd ${{ github.workspace }}
-        pnpm install --frozen-lockfile
-        pnpm build
-    - name: Run Guardian Audit
-      shell: bash
-      id: audit
-      run: |
-        RESULT=$(npx guardian audit . --format json --fail-on ${{ inputs.fail-on }} 2>/dev/null || true)
+        REPORT=$(node ${{ github.action_path }}/../packages/cli/dist/index.js audit ${{ inputs.path }} --format json --fail-on ${{ inputs.fail-on }} 2>/dev/null || true)
         echo "report<<EOF" >> $GITHUB_OUTPUT
-        echo "$RESULT" >> $GITHUB_OUTPUT
+        echo "$REPORT" >> $GITHUB_OUTPUT
         echo "EOF" >> $GITHUB_OUTPUT
-        EXIT_CODE=$(npx guardian audit . --fail-on ${{ inputs.fail-on }} > /dev/null 2>&1; echo $?)
-        echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
-    - name: Comment on PR
+
+        # Extract status and violations count
+        STATUS=$(echo "$REPORT" | node -e "const r=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));console.log(r.status||'error')" 2>/dev/null || echo "error")
+        COUNT=$(echo "$REPORT" | node -e "const r=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));console.log(r.violations?.length||0)" 2>/dev/null || echo "0")
+
+        echo "status=$STATUS" >> $GITHUB_OUTPUT
+        echo "violations-count=$COUNT" >> $GITHUB_OUTPUT
+
+    - name: Generate PR Comment
       if: inputs.generate-pr-comment == 'true' && github.event_name == 'pull_request'
       uses: actions/github-script@v7
       with:
         script: |
-          const report = JSON.parse(`${{ steps.audit.outputs.report }}`);
-          let body = '## 🛡️ Guardian Architecture Audit\n\n';
-          body += `**Status:** ${report.status === 'passed' ? '✅ Passed' : '❌ Failed'}\n\n`;
-          body += `| Metric | Count |\n|--------|-------|\n`;
-          body += `| Errors | ${report.summary.errorCount} |\n`;
-          body += `| Warnings | ${report.summary.warningCount} |\n\n`;
-          if (report.violations.length > 0) {
-            body += '### Violations\n\n';
-            body += '| File | Line | Rule | Severity | Description |\n';
-            body += '|------|------|------|----------|-------------|\n';
-            for (const v of report.violations.slice(0, 20)) {
-              body += `| \`${v.filePath}\` | ${v.line} | ${v.rule || '-'} | ${v.severity} | ${v.description.slice(0, 60)} |\n`;
+          const report = JSON.parse(`${{ steps.audit.outputs.report }}` || '{}');
+          const violations = report.violations || [];
+          const status = report.status || 'error';
+
+          let body = '## 🛡️ Guardian Governance Audit\n\n';
+
+          if (status === 'passed') {
+            body += '✅ **All checks passed** — No Architectural Drift detected.\n';
+          } else if (status === 'failed') {
+            body += `❌ **${violations.length} violation(s) detected**\n\n`;
+            body += '| File | Line | Agent | Severity | Description |\n';
+            body += '|------|------|-------|----------|-------------|\n';
+
+            for (const v of violations.slice(0, 25)) {
+              const agent = v.rule?.split('_')[0] || 'unknown';
+              body += `| \`${v.filePath}\` | ${v.line} | ${agent} | ${v.severity} | ${v.description.substring(0, 80)} |\n`;
             }
-            if (report.violations.length > 20) {
-              body += `\n*...and ${report.violations.length - 20} more violations*\n`;
+
+            if (violations.length > 25) {
+              body += `\n*... and ${violations.length - 25} more violations*\n`;
             }
+
+            body += '\n### Summary\n';
+            body += `- **Errors:** ${report.summary?.errorCount || 0}\n`;
+            body += `- **Warnings:** ${report.summary?.warningCount || 0}\n`;
+
+            if (report.summary?.byAgent) {
+              body += '\n**By Agent:**\n';
+              for (const a of report.summary.byAgent) {
+                body += `- ${a.agentName}: ${a.errorCount} errors, ${a.warningCount} warnings\n`;
+              }
+            }
+          } else {
+            body += `⚠️ **Audit encountered an error:** ${report.error || 'Unknown error'}\n`;
           }
-          await github.rest.issues.createComment({
+
+          body += '\n---\n*Generated by [Guardian Governance Platform](https://github.com/guardian-mcp/toolkit)*';
+
+          // Post or update comment
+          const { data: comments } = await github.rest.issues.listComments({
             owner: context.repo.owner,
             repo: context.repo.repo,
             issue_number: context.issue.number,
-            body
           });
-    - name: Check Result
+
+          const botComment = comments.find(c => c.body.includes('Guardian Governance Audit'));
+
+          if (botComment) {
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: botComment.id,
+              body,
+            });
+          } else {
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            });
+          }
+
+    - name: Set check status
+      if: always()
       shell: bash
-      run: exit ${{ steps.audit.outputs.exit_code }}
+      run: |
+        STATUS="${{ steps.audit.outputs.status }}"
+        if [ "$STATUS" = "failed" ]; then
+          echo "::error::Guardian audit detected Architectural Drift"
+          exit 1
+        elif [ "$STATUS" = "error" ]; then
+          echo "::warning::Guardian audit encountered an error"
+          exit 0
+        fi

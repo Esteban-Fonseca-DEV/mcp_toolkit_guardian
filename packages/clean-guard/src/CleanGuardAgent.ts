@@ -2,11 +2,22 @@ import { IAgent, ToolDefinition, Ruleset, AuditReport } from "@guardian/shared";
 import { analyzeAstImports } from "./tools/analyzeAstImports";
 import { validateLayerBoundaries } from "./tools/validateLayerBoundaries";
 import { generateDependencyGraph } from "./tools/generateDependencyGraph";
+import { IAstCache } from "./AstParser";
 
 export class CleanGuardAgent implements IAgent {
   readonly name = "clean-guard";
   readonly version = "1.0.0";
   private ruleset!: Ruleset;
+  private cache?: IAstCache;
+
+  /**
+   * Creates a CleanGuardAgent instance.
+   * @param cache - Optional AST cache instance for reusing parsed ASTs (Req 3.2, 3.3).
+   *               If not provided, files are parsed fresh on every invocation.
+   */
+  constructor(cache?: IAstCache) {
+    this.cache = cache;
+  }
 
   initialize(ruleset: Ruleset): void {
     this.ruleset = ruleset;
@@ -22,7 +33,7 @@ export class CleanGuardAgent implements IAgent {
         required: ["filepath"],
       },
       handler: (args: unknown, ruleset: Ruleset): Promise<AuditReport> =>
-        analyzeAstImports(args as { filepath: string }, ruleset),
+        analyzeAstImports(args as { filepath: string }, ruleset, this.cache),
     },
     {
       name: "validate_layer_boundaries",
@@ -50,7 +61,7 @@ export class CleanGuardAgent implements IAgent {
         required: ["directory"],
       },
       handler: (args: unknown, ruleset: Ruleset): Promise<AuditReport> =>
-        generateDependencyGraph(args as { directory: string }, ruleset),
+        generateDependencyGraph(args as { directory: string }, ruleset, this.cache),
     },
   ];
 }

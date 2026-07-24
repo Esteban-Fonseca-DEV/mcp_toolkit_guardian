@@ -77,14 +77,55 @@ jobs:
 
 ## Using the GitHub Action (composite)
 
-If your project uses the Guardian repo directly:
+Use `guardian-mcp/action@v1` in your workflow:
 
 ```yaml
-- uses: Estebanfonseca/mcp_toolkit_guardian/action@main
-  with:
-    fail-on: 'error'
-    generate-pr-comment: 'true'
+name: Guardian Governance Audit
+on:
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: guardian-mcp/action@v1
+        with:
+          path: '.'
+          fail-on: 'error'
+          format: 'text'
+          generate-pr-comment: 'true'
 ```
+
+### Action Inputs
+
+| Input | Description | Default |
+|-------|-------------|---------|
+| `path` | Path to analyze | `.` |
+| `fail-on` | Severity level that causes failure: `error` or `warning` | `error` |
+| `format` | Output format: `text` or `json` | `text` |
+| `generate-pr-comment` | Generate PR comment with results | `true` |
+
+### Action Outputs
+
+| Output | Description |
+|--------|-------------|
+| `status` | Audit status: `passed`, `failed`, or `error` |
+| `violations-count` | Total number of violations found |
+| `report` | Full audit report in JSON format |
+
+### Features
+
+- Runs `guardian audit` on PR code without requiring an external MCP server (CLI headless mode)
+- Marks check as failure when blocking violations detected
+- Generates PR comment with table of Architectural Drift, agent, and suggestions
+- Updates existing comment on re-runs instead of creating duplicates
 
 ## Configuration
 
