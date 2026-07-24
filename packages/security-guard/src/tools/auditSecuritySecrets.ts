@@ -1,84 +1,105 @@
-import { readFile } from "fs/promises";
+import * as fs from "fs";
 import * as path from "path";
-import { glob } from "glob";
-import { AuditReport, Ruleset, Violation, buildReport } from "@guardian/shared";
-import { DEFAULT_SECRET_PATTERNS, SecretPattern } from "../patterns";
+import { AuditReport, Violation, Ruleset, buildReport } from "@guardian/shared";
+import { resolvePatterns } from "../patterns";
 
 /**
- * Checks if a file is binary by looking for null bytes in the first 512 characters.
+ * Recursively collects all files in a directory, respecting excludePaths.
  */
-function isBinaryContent(content: string): boolean {
-  const sample = content.slice(0, 512);
-  return sample.includes("\0");
+function collectFiles(directory: string, excludePaths: string[]): string[] {
+  const files: string[] = [];
+
+  function walk(dir: string): void {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      const relativePath = path.relative(directory, fullPath).replace(/\\/g, "/");
+
+      // Check exclusions
+      const shouldExclude = excludePaths.some(
+        (exc) => relativePath.startsWith(exc) || entry.name === exc
+      );
+      if (shouldExclude) continue;
+
+      if (entry.isDirectory()) {
+        walk(fullPath);
+      } else if (entry.isFile()) {
+        // Skip binary files and common non-code files
+        const ext = path.extname(entry.name).toLowerCase();
+        const skipExtensions = [".png", ".jpg", ".jpeg", ".gif", ".ico", ".woff", ".woff2", ".ttf", ".eot", ".pdf", ".zip", ".tar", ".gz"];
+        if (!skipExtensions.includes(ext)) {
+          files.push(fullPath);
+        }
+      }
+    }
+  }
+
+  walk(directory);
+  return files;
 }
 
+/**
+ * Scans a directory for hardcoded secrets and credentials.
+ * Returns an AuditReport with Violations for each detected secret.
+ */
 export async function auditSecuritySecrets(
   args: { directory: string },
   ruleset: Ruleset
 ): Promise<AuditReport> {
   const { directory } = args;
-  const violations: Violation[] = [];
-  const excludePaths = ruleset.excludePaths ?? [];
 
-  // Build glob ignore patterns
-  const ignorePatterns = excludePaths.map((p) => `**/${p}/**`);
-
-  let files: string[];
-  try {
-    files = await glob("**/*", {
-      cwd: directory,
-      absolute: true,
-      nodir: true,
-      ignore: ignorePatterns,
-    });
-  } catch (err) {
+  if (!fs.existsSync(directory)) {
     return buildReport({
       agentName: "security-guard",
       analyzedPath: directory,
-      violations: [
-        {
-          filePath: directory,
-          line: 0,
-          description: `Cannot scan directory: ${(err as Error).message}`,
-          severity: "warning",
-          rule: "DIRECTORY_SCAN_ERROR",
-        },
-      ],
+      status: "error",
+      error: `Directory not found: ${directory}`,
     });
   }
 
-  const patterns: SecretPattern[] = DEFAULT_SECRET_PATTERNS;
+  const stat = fs.statSync(directory);
+  if (!stat.isDirectory()) {
+    return buildReport({
+      agentName: "security-guard",
+      analyzedPath: directory,
+      status: "error",
+      error: `Path is not a directory: ${directory}`,
+    });
+  }
 
-  for (const file of files) {
-    let content: string;
+  const excludePaths = ruleset.excludePaths ?? ["node_modules", "dist", "coverage", ".git"];
+  const patterns = resolvePatterns((ruleset as any).security?.customPatterns);
+  const files = collectFiles(directory, excludePaths);
+  const violations: Violation[] = [];
+
+  for (const filePath of files) {
     try {
-      content = await readFile(file, "utf-8");
-    } catch {
-      // Skip files that cannot be read (permissions, etc.)
-      continue;
-    }
+      const content = fs.readFileSync(filePath, "utf-8");
+      const lines = content.split("\n");
 
-    // Skip binary files
-    if (isBinaryContent(content)) {
-      continue;
-    }
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
 
-    const lines = content.split("\n");
+        // Skip comment lines (basic heuristic)
+        const trimmed = line.trim();
+        if (trimmed.startsWith("//") && !trimmed.includes("=") && !trimmed.includes(":")) continue;
 
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      for (const secretPattern of patterns) {
-        if (secretPattern.pattern.test(line)) {
-          const relativePath = path.relative(directory, file).replace(/\\/g, "/");
-          violations.push({
-            filePath: relativePath,
-            line: i + 1,
-            description: `Potential ${secretPattern.description} detected (${secretPattern.name}).`,
-            severity: "error",
-            rule: `SECRET_EXPOSED_${secretPattern.name}`,
-          });
+        for (const pattern of patterns) {
+          if (pattern.pattern.test(line)) {
+            violations.push({
+              filePath: path.relative(directory, filePath).replace(/\\/g, "/"),
+              line: i + 1,
+              description: `${pattern.description} (type: ${pattern.type})`,
+              severity: "error",
+              rule: `SECURITY_${pattern.type}`,
+            });
+            break; // One violation per line max
+          }
         }
       }
+    } catch {
+      // Skip files that can't be read (binary, permissions, etc.)
+      continue;
     }
   }
 

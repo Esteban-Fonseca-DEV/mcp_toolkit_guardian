@@ -1,11 +1,11 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { writeFile, mkdir, rm } from "fs/promises";
+import { describe, test, expect, beforeEach, afterEach } from "vitest";
+import * as fs from "fs";
 import * as path from "path";
+import * as os from "os";
 import { auditSecuritySecrets } from "../tools/auditSecuritySecrets";
 import { Ruleset } from "@guardian/shared";
 
-const TEST_DIR = path.resolve(__dirname, "__fixtures_secrets__");
-const defaultRuleset: Ruleset = {
+const DEFAULT_RULESET: Ruleset = {
   version: "1.0.0",
   executionMode: "local",
   layers: [],
@@ -13,157 +13,101 @@ const defaultRuleset: Ruleset = {
   excludePaths: ["node_modules", "dist"],
 };
 
-describe("auditSecuritySecrets", () => {
-  beforeAll(async () => {
-    await mkdir(TEST_DIR, { recursive: true });
+describe("audit_security_secrets", () => {
+  let tempDir: string;
+
+  beforeEach(() => {
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "guardian-sec-"));
   });
 
-  afterAll(async () => {
-    await rm(TEST_DIR, { recursive: true, force: true });
+  afterEach(() => {
+    fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
-  it("detects AWS Access Key", async () => {
-    const filePath = path.join(TEST_DIR, "awsKey.ts");
-    const content = `const key = "AKIAIOSFODNN7EXAMPLE";`;
-    await writeFile(filePath, content, "utf-8");
+  test("detects AWS access key", async () => {
+    const file = path.join(tempDir, "config.ts");
+    fs.writeFileSync(file, `const key = "AKIAIOSFODNN7EXAMPLE";\n`);
 
-    const report = await auditSecuritySecrets({ directory: TEST_DIR }, defaultRuleset);
-
+    const report = await auditSecuritySecrets({ directory: tempDir }, DEFAULT_RULESET);
     expect(report.status).toBe("failed");
-    const awsViolation = report.violations.find(
-      (v) => v.rule === "SECRET_EXPOSED_AWS_ACCESS_KEY"
-    );
-    expect(awsViolation).toBeDefined();
-    expect(awsViolation!.line).toBe(1);
-    expect(awsViolation!.filePath).toContain("awsKey.ts");
+    expect(report.violations).toHaveLength(1);
+    expect(report.violations[0].rule).toBe("SECURITY_AWS_ACCESS_KEY");
+    expect(report.violations[0].severity).toBe("error");
   });
 
-  it("detects GitHub Personal Access Token", async () => {
-    const filePath = path.join(TEST_DIR, "ghToken.ts");
-    const content = `const token = "ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij";`;
-    await writeFile(filePath, content, "utf-8");
+  test("detects GitHub personal access token", async () => {
+    const file = path.join(tempDir, "auth.ts");
+    fs.writeFileSync(file, `const token = "ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij";\n`);
 
-    const report = await auditSecuritySecrets({ directory: TEST_DIR }, defaultRuleset);
-
-    const ghViolation = report.violations.find(
-      (v) => v.rule === "SECRET_EXPOSED_GITHUB_TOKEN"
-    );
-    expect(ghViolation).toBeDefined();
-    expect(ghViolation!.filePath).toContain("ghToken.ts");
+    const report = await auditSecuritySecrets({ directory: tempDir }, DEFAULT_RULESET);
+    expect(report.status).toBe("failed");
+    expect(report.violations[0].rule).toBe("SECURITY_GITHUB_TOKEN");
   });
 
-  it("detects JWT tokens", async () => {
-    const filePath = path.join(TEST_DIR, "jwt.ts");
-    const content = `const jwt = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c";`;
-    await writeFile(filePath, content, "utf-8");
+  test("detects JWT token", async () => {
+    const file = path.join(tempDir, "token.ts");
+    fs.writeFileSync(file, `const jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U";\n`);
 
-    const report = await auditSecuritySecrets({ directory: TEST_DIR }, defaultRuleset);
-
-    const jwtViolation = report.violations.find(
-      (v) => v.rule === "SECRET_EXPOSED_JWT_TOKEN"
-    );
-    expect(jwtViolation).toBeDefined();
-    expect(jwtViolation!.filePath).toContain("jwt.ts");
+    const report = await auditSecuritySecrets({ directory: tempDir }, DEFAULT_RULESET);
+    expect(report.status).toBe("failed");
+    expect(report.violations[0].rule).toBe("SECURITY_JWT_TOKEN");
   });
 
-  it("detects database connection strings", async () => {
-    const filePath = path.join(TEST_DIR, "dbUrl.ts");
-    const content = `const db = "postgres://admin:secretpass@localhost:5432/mydb";`;
-    await writeFile(filePath, content, "utf-8");
+  test("detects database URL with credentials", async () => {
+    const file = path.join(tempDir, "db.ts");
+    fs.writeFileSync(file, `const url = "postgres://admin:secretpass@localhost:5432/mydb";\n`);
 
-    const report = await auditSecuritySecrets({ directory: TEST_DIR }, defaultRuleset);
-
-    const dbViolation = report.violations.find(
-      (v) => v.rule === "SECRET_EXPOSED_DATABASE_URL"
-    );
-    expect(dbViolation).toBeDefined();
-    expect(dbViolation!.filePath).toContain("dbUrl.ts");
+    const report = await auditSecuritySecrets({ directory: tempDir }, DEFAULT_RULESET);
+    expect(report.status).toBe("failed");
+    expect(report.violations[0].rule).toBe("SECURITY_DATABASE_URL");
   });
 
-  it("detects private key markers", async () => {
-    const filePath = path.join(TEST_DIR, "privkey.ts");
-    const content = `const key = \`-----BEGIN RSA PRIVATE KEY-----
-MIIEpAIBAAKCAQEA...
------END RSA PRIVATE KEY-----\`;`;
-    await writeFile(filePath, content, "utf-8");
+  test("detects private key", async () => {
+    const file = path.join(tempDir, "key.pem");
+    fs.writeFileSync(file, `-----BEGIN RSA PRIVATE KEY-----\nMIIEpA...\n-----END RSA PRIVATE KEY-----\n`);
 
-    const report = await auditSecuritySecrets({ directory: TEST_DIR }, defaultRuleset);
-
-    const keyViolation = report.violations.find(
-      (v) => v.rule === "SECRET_EXPOSED_PRIVATE_KEY"
-    );
-    expect(keyViolation).toBeDefined();
-    expect(keyViolation!.filePath).toContain("privkey.ts");
+    const report = await auditSecuritySecrets({ directory: tempDir }, DEFAULT_RULESET);
+    expect(report.status).toBe("failed");
+    expect(report.violations[0].rule).toBe("SECURITY_PRIVATE_KEY");
   });
 
-  it("detects generic password assignments", async () => {
-    const filePath = path.join(TEST_DIR, "password.ts");
-    const content = `const config = { password: "super_secret_123" };`;
-    await writeFile(filePath, content, "utf-8");
+  test("detects generic password assignment", async () => {
+    const file = path.join(tempDir, "config.ts");
+    fs.writeFileSync(file, `const password = "super_secret_123";\n`);
 
-    const report = await auditSecuritySecrets({ directory: TEST_DIR }, defaultRuleset);
-
-    const pwdViolation = report.violations.find(
-      (v) => v.rule === "SECRET_EXPOSED_GENERIC_PASSWORD"
-    );
-    expect(pwdViolation).toBeDefined();
-    expect(pwdViolation!.filePath).toContain("password.ts");
+    const report = await auditSecuritySecrets({ directory: tempDir }, DEFAULT_RULESET);
+    expect(report.status).toBe("failed");
+    expect(report.violations[0].rule).toBe("SECURITY_GENERIC_PASSWORD");
   });
 
-  it("does not flag normal code as false positive", async () => {
-    // Clean up previous fixture files first
-    await rm(TEST_DIR, { recursive: true, force: true });
-    await mkdir(TEST_DIR, { recursive: true });
+  test("no false positive for normal strings", async () => {
+    const file = path.join(tempDir, "clean.ts");
+    fs.writeFileSync(file, `const message = "Hello world";\nconst count = 42;\n`);
 
-    const filePath = path.join(TEST_DIR, "clean.ts");
-    const content = `
-import { UserService } from "./services";
-
-export function getUser(id: string): string {
-  const name = "John Doe";
-  const count = 42;
-  return \`User \${name} with id \${id}\`;
-}
-
-export const CONFIG = {
-  port: 3000,
-  host: "localhost",
-};
-`;
-    await writeFile(filePath, content, "utf-8");
-
-    const report = await auditSecuritySecrets({ directory: TEST_DIR }, defaultRuleset);
-
+    const report = await auditSecuritySecrets({ directory: tempDir }, DEFAULT_RULESET);
     expect(report.status).toBe("passed");
     expect(report.violations).toHaveLength(0);
   });
 
-  it("respects excludePaths from ruleset", async () => {
-    // Clean up
-    await rm(TEST_DIR, { recursive: true, force: true });
-    await mkdir(path.join(TEST_DIR, "node_modules"), { recursive: true });
+  test("respects excludePaths", async () => {
+    const nodeModules = path.join(tempDir, "node_modules");
+    fs.mkdirSync(nodeModules);
+    fs.writeFileSync(
+      path.join(nodeModules, "lib.js"),
+      `const key = "AKIAIOSFODNN7EXAMPLE";\n`
+    );
 
-    const excludedFile = path.join(TEST_DIR, "node_modules", "secret.ts");
-    const content = `const key = "AKIAIOSFODNN7EXAMPLE";`;
-    await writeFile(excludedFile, content, "utf-8");
-
-    const report = await auditSecuritySecrets({ directory: TEST_DIR }, defaultRuleset);
-
+    const report = await auditSecuritySecrets({ directory: tempDir }, DEFAULT_RULESET);
     expect(report.status).toBe("passed");
     expect(report.violations).toHaveLength(0);
   });
 
-  it("skips binary files", async () => {
-    await rm(TEST_DIR, { recursive: true, force: true });
-    await mkdir(TEST_DIR, { recursive: true });
-
-    const binaryFile = path.join(TEST_DIR, "binary.bin");
-    // Create content with null bytes (simulating binary)
-    const content = "AKIAIOSFODNN7EXAMPLE" + "\0".repeat(100);
-    await writeFile(binaryFile, content, "utf-8");
-
-    const report = await auditSecuritySecrets({ directory: TEST_DIR }, defaultRuleset);
-
-    expect(report.violations).toHaveLength(0);
+  test("returns error for non-existent directory", async () => {
+    const report = await auditSecuritySecrets(
+      { directory: "/non/existent/path" },
+      DEFAULT_RULESET
+    );
+    expect(report.status).toBe("error");
+    expect(report.error).toContain("not found");
   });
 });

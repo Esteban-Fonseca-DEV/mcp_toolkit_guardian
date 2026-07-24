@@ -1,15 +1,20 @@
 {
   "name": "@guardian/security-guard",
   "version": "1.0.0",
+  "description": "Security Guard agent - detects exposed secrets and insecure env access",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "test": "vitest run"
   },
   "dependencies": {
     "@guardian/shared": "workspace:*",
-    "glob": "^10.0.0",
-    "typescript": "^5.0.0",
-    "minimatch": "^9.0.0"
+    "glob": "^10.3.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0",
+    "fast-check": "^3.15.0"
   }
 }

@@ -1,7 +1,18 @@
 import * as http from "http";
 import { AuditReport } from "@guardian/shared";
 
-export interface DashboardData {
+// Re-export new modules
+export { SSEChannel } from "./sse/SSEChannel";
+export { DashboardServer } from "./DashboardServer";
+export {
+  calculateHealthScore,
+  calculateRadarData,
+  calculateDashboardData,
+} from "./calculations";
+export type { DashboardData } from "./calculations";
+
+// Server-side dashboard data shape (compatible with both old and new DashboardData)
+export interface DashboardHtmlData {
   healthScore: number;
   totalFiles: number;
   totalLines: number;
@@ -10,56 +21,25 @@ export interface DashboardData {
     warnings: number;
   };
   byAgent: Record<string, { errors: number; warnings: number }>;
-  heatmap: Record<string, number>; // directory → violation count
+  heatmap: Record<string, number | { violationCount: number }>;
 }
 
-export function calculateDashboardData(report: AuditReport, totalLines: number): DashboardData {
-  const byAgent: Record<string, { errors: number; warnings: number }> = {};
-  const heatmap: Record<string, number> = {};
-
-  for (const v of report.violations) {
-    // By agent
-    const agent = report.agentName;
-    if (!byAgent[agent]) byAgent[agent] = { errors: 0, warnings: 0 };
-    if (v.severity === "error") byAgent[agent].errors++;
-    else byAgent[agent].warnings++;
-
-    // Heatmap by directory
-    const dir = v.filePath.split("/").slice(0, -1).join("/") || ".";
-    heatmap[dir] = (heatmap[dir] ?? 0) + 1;
-  }
-
-  // Use byAgent from report if available
-  if (report.summary.byAgent) {
-    for (const a of report.summary.byAgent) {
-      byAgent[a.agentName] = { errors: a.errorCount, warnings: a.warningCount };
-    }
-  }
-
-  const errorCount = report.summary.errorCount;
-  const healthScore = Math.max(0, Math.round((1 - errorCount / Math.max(totalLines, 1)) * 100));
-
-  return {
-    healthScore: Math.min(100, healthScore),
-    totalFiles: Object.keys(heatmap).length,
-    totalLines,
-    violations: {
-      errors: report.summary.errorCount,
-      warnings: report.summary.warningCount,
-    },
-    byAgent,
-    heatmap,
-  };
+function getHeatmapCount(value: number | { violationCount: number }): number {
+  if (typeof value === "number") return value;
+  return value.violationCount;
 }
 
-export function generateDashboardHtml(data: DashboardData): string {
+export function generateDashboardHtml(data: DashboardHtmlData): string {
   const agentRows = Object.entries(data.byAgent)
     .map(([name, counts]) => `<tr><td>${name}</td><td>${counts.errors}</td><td>${counts.warnings}</td></tr>`)
     .join("\n");
 
   const heatmapRows = Object.entries(data.heatmap)
-    .sort((a, b) => b[1] - a[1])
-    .map(([dir, count]) => `<tr><td>${dir}</td><td>${count}</td><td>${"\u2588".repeat(Math.min(count, 20))}</td></tr>`)
+    .sort((a, b) => getHeatmapCount(b[1]) - getHeatmapCount(a[1]))
+    .map(([dir, value]) => {
+      const count = getHeatmapCount(value);
+      return `<tr><td>${dir}</td><td>${count}</td><td>${"\u2588".repeat(Math.min(count, 20))}</td></tr>`;
+    })
     .join("\n");
 
   return `<!DOCTYPE html>
@@ -119,7 +99,7 @@ export function generateDashboardHtml(data: DashboardData): string {
 </html>`;
 }
 
-export function startDashboardServer(data: DashboardData, port: number = 3000): http.Server {
+export function startDashboardServer(data: DashboardHtmlData, port: number = 3000): http.Server {
   const html = generateDashboardHtml(data);
 
   const server = http.createServer((req, res) => {

@@ -1,7 +1,15 @@
-import { IAgent, ToolDefinition, Ruleset, AuditReport } from "@guardian/shared";
+import { IAgent, ToolDefinition, Ruleset } from "@guardian/shared";
 import { auditSecuritySecrets } from "./tools/auditSecuritySecrets";
 import { auditSecurityEnvAccess } from "./tools/auditSecurityEnvAccess";
 
+/**
+ * Security Guard Agent
+ *
+ * Detects exposed secrets (API keys, tokens, passwords, connection strings)
+ * and enforces that environment variable access is confined to the infrastructure layer.
+ *
+ * Part of the Guardian Governance Platform — detects Architectural_Drift related to security.
+ */
 export class SecurityGuardAgent implements IAgent {
   readonly name = "security-guard";
   readonly version = "1.0.0";
@@ -18,10 +26,15 @@ export class SecurityGuardAgent implements IAgent {
         "Scans a directory for hardcoded secrets and credentials (API keys, tokens, passwords, connection strings).",
       schema: {
         type: "object",
-        properties: { directory: { type: "string" } },
+        properties: {
+          directory: {
+            type: "string",
+            description: "Directory path to scan recursively for secrets",
+          },
+        },
         required: ["directory"],
       },
-      handler: (args: unknown, ruleset: Ruleset): Promise<AuditReport> =>
+      handler: (args, ruleset) =>
         auditSecuritySecrets(args as { directory: string }, ruleset),
     },
     {
@@ -30,10 +43,15 @@ export class SecurityGuardAgent implements IAgent {
         "Verifies that process.env access is only used in the infrastructure layer.",
       schema: {
         type: "object",
-        properties: { filepath: { type: "string" } },
+        properties: {
+          filepath: {
+            type: "string",
+            description: "File path to check for process.env access",
+          },
+        },
         required: ["filepath"],
       },
-      handler: (args: unknown, ruleset: Ruleset): Promise<AuditReport> =>
+      handler: (args, ruleset) =>
         auditSecurityEnvAccess(args as { filepath: string }, ruleset),
     },
   ];
