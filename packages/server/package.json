@@ -16,6 +16,7 @@
     "@guardian/solid-copilot": "workspace:*",
     "@guardian/concurrency-guard": "workspace:*",
     "@guardian/lang-specialists": "workspace:*",
+    "@guardian/semantic-naming-guard": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "ajv": "^8.12.0",
     "minimatch": "^9.0.0",

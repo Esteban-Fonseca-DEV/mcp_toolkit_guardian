@@ -9,10 +9,12 @@ import { SecurityGuardAgent } from "@guardian/security-guard";
 import { SolidCopilotAgent } from "@guardian/solid-copilot";
 import { ConcurrencyGuardAgent } from "@guardian/concurrency-guard";
 import { GoIdiomaticGuard, PyAsyncGuard, TsContractGuard, DartArchGuard, DotNetCleanGuard } from "@guardian/lang-specialists";
+import { SemanticNamingAgent } from "@guardian/semantic-naming-guard";
 import { Ruleset, AuditReport, IAgent, Violation, buildReport, computeStatus, AgentSummary, parseImportsMultiLang, getSupportedExtensions } from "@guardian/shared";
 import { minimatch } from "minimatch";
 import { formatReport } from "./formatter";
 import { resolveExitCode } from "./exitCodeResolver";
+
 
 // All available agents
 function getAllAgents(): IAgent[] {
@@ -28,6 +30,7 @@ function getAllAgents(): IAgent[] {
     new TsContractGuard(),
     new DartArchGuard(),
     new DotNetCleanGuard(),
+    new SemanticNamingAgent(),
   ];
 }
 
@@ -593,35 +596,6 @@ hooksCmd
     }
   });
 
-// --- guardian dashboard ---
-program
-  .command("dashboard")
-  .description("Levantar dashboard web con metricas de deuda tecnica")
-  .option("--port <number>", "Puerto del servidor HTTP", "3000")
-  .action(async (options: { port: string }) => {
-    const resolvedPath = path.resolve(".");
-    const configPath = path.join(resolvedPath, ".guardian.json");
-    const ruleset = await loadRuleset(configPath);
-    const agents: IAgent[] = getAllAgents();
-    const report = await runAuditAll(resolvedPath, agents, ruleset);
 
-    // Count total lines (approximate)
-    const { glob } = await import("glob");
-    const files = await glob("**/*.ts", { cwd: resolvedPath, ignore: ["**/node_modules/**", "**/dist/**"] });
-    let totalLines = 0;
-    for (const f of files) {
-      const content = fs.readFileSync(path.join(resolvedPath, f), "utf-8");
-      totalLines += content.split("\n").length;
-    }
-
-    const { calculateDashboardData, startDashboardServer } = await import("@guardian/dashboard");
-    const data = calculateDashboardData(report, totalLines);
-    const port = parseInt(options.port);
-    startDashboardServer(data, port);
-
-    process.stderr.write(`\n  Guardian Dashboard running at http://localhost:${port}\n`);
-    process.stderr.write(`  Health Score: ${data.healthScore}/100\n`);
-    process.stderr.write(`  Press Ctrl+C to stop.\n\n`);
-  });
 
 program.parse();
