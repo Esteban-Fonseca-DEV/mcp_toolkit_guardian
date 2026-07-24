@@ -14,8 +14,7 @@ import { Ruleset, AuditReport, IAgent, Violation, buildReport, computeStatus, Ag
 import { minimatch } from "minimatch";
 import { formatReport } from "./formatter";
 import { resolveExitCode } from "./exitCodeResolver";
-import { createWatchCommand } from "./commands/watch";
-import { createDashboardCommand } from "./commands/dashboard";
+
 
 // All available agents
 function getAllAgents(): IAgent[] {
@@ -597,21 +596,6 @@ hooksCmd
     }
   });
 
-// --- guardian dashboard ---
-program.addCommand(
-  createDashboardCommand({
-    loadRuleset,
-    getAllAgents,
-    runAuditAll,
-  })
-);
 
-// --- guardian watch ---
-program.addCommand(
-  createWatchCommand({
-    loadRuleset,
-    getAllAgents,
-  })
-);
 
 program.parse();

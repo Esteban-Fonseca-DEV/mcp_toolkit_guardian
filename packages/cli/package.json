@@ -25,7 +25,6 @@
     "@guardian/semantic-naming-guard": "workspace:*",
     "@guardian/server": "workspace:*",
     "@guardian/dashboard": "workspace:*",
-    "chokidar": "^4.0.0",
     "commander": "^12.0.0",
     "glob": "^10.0.0",
     "minimatch": "^9.0.0"
